@@ -49,4 +49,16 @@ def train_model(X_train, Y_train, X_test, Y_test, look_back, num_features, model
     # Convert predictions to numpy array
     preds = preds.as_data_frame().values
 
-    return model, preds
+    # Generate new input data for forecast
+    forecast_input = X_test[-look_back:]  # Get the most recent observations
+
+    # Convert forecast input to H2O data frame
+    forecast_input_h2o = h2o.H2OFrame(forecast_input if isinstance(forecast_input, pd.DataFrame) else forecast_input.tolist())
+
+    # Make forecast
+    forecast = model.predict(forecast_input_h2o)
+
+    # Convert forecast to numpy array
+    forecast = forecast.as_data_frame().values
+
+    return model, preds, forecast
