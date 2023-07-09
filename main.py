@@ -60,11 +60,15 @@ X_test_2d = X_test.reshape((X_test.shape[0], -1))
 print("Shape of X_train: ", X_train.shape)
 print("First few items of X_train: ", X_train[:5])
 # Convert numpy arrays to H2O Frame
-X_train_h2o = h2o.H2OFrame(X_train)
-Y_train_h2o = h2o.H2OFrame(Y_train)
-X_test_h2o = h2o.H2OFrame(X_test)
-Y_test_h2o = h2o.H2OFrame(Y_test)
+X_train_h2o = h2o.H2OFrame(X_train.tolist())
+Y_train_h2o = h2o.H2OFrame(Y_train.tolist())
+X_test_h2o = h2o.H2OFrame(X_test.tolist())
+Y_test_h2o = h2o.H2OFrame(Y_test.tolist())
 
+print(X_train.shape)
+print(Y_train.shape)
+print(X_test.shape)
+print(Y_test.shape)
 
 # Combine features and target into a single data frame
 train_data = X_train_h2o.cbind(Y_train_h2o)
