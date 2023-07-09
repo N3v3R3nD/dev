@@ -103,8 +103,7 @@ db_operations.create_tables(cur)
 
 # Insert data
 # db_operations.insert_data(cur, history, Y_train, train_predict, test_predict, target_scaler)  # Commented out as history is not defined
-db_operations.insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae)
-
+db_operations.insert_data(cur, Y_train, train_predict, test_predict, target_scaler)
 # Close the connection
 db_operations.close_connection(conn)
 
