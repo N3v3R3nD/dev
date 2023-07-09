@@ -9,6 +9,7 @@ import pandas_datareader as pdr
 from pandas.tseries.holiday import USFederalHolidayCalendar
 from sklearn.preprocessing import StandardScaler
 import config
+import h2o
 def fetch_and_preprocess_data():
 
     # Access the parameters
@@ -142,5 +143,14 @@ def fetch_and_preprocess_data():
     # Convert lists to numpy arrays
     X_train, Y_train = np.array(X_train), np.array(Y_train)
     X_test, Y_test = np.array(X_test), np.array(Y_test)
+    # Reshape the data to 2D
+    X_train_2d = X_train.reshape((X_train.shape[0], -1))
+    X_test_2d = X_test.reshape((X_test.shape[0], -1))
+
+    # Convert data to H2O data frames
+    X_train_h2o = h2o.H2OFrame(X_train_2d)
+    Y_train_h2o = h2o.H2OFrame(Y_train)
+    X_test_h2o = h2o.H2OFrame(X_test_2d)
+    Y_test_h2o = h2o.H2OFrame(Y_test)
 
     return X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, look_back, target_scaler, num_features
