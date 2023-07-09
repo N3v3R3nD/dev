@@ -10,7 +10,6 @@ database = db_config['database']
 user = db_config['user']
 password = db_config['password']
 
-
 def connect_to_db():
     # Connect to the database
     logging.info('Connecting to the database')
@@ -65,7 +64,8 @@ def create_tables(cur):
         )
     """)
 
-def insert_data(cur, history, Y_train, train_predict, test_predict, target_scaler):    # Insert forecast data into the database
+def insert_data(cur, Y_train, train_predict, test_predict, target_scaler):    
+    # Insert forecast data into the database
     logging.info('Inserting forecast data into the database')
     for i in range(len(test_predict)):
         date = (datetime.today() + timedelta(days=i)).strftime('%Y-%m-%d')
@@ -97,7 +97,6 @@ def insert_data(cur, history, Y_train, train_predict, test_predict, target_scale
             ON CONFLICT (date) DO UPDATE 
             SET actual_price = {actual_price}, predicted_price = {predicted_price}
         """)
-        
 
 def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae):
     # Insert evaluation results into the database
@@ -106,6 +105,7 @@ def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae):
         INSERT INTO evaluation_results (train_rmse, test_rmse, train_mae, test_mae) 
         VALUES ({train_rmse}, {test_rmse}, {train_mae}, {test_mae})
     """)
+
 def close_connection(conn):
     # Commit changes and close connection
     conn.commit()
