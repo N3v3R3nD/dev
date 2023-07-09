@@ -53,19 +53,27 @@ logging.info('Starting script')
 logging.info('Fetching and preprocessing data')
 X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, look_back, target_scaler, num_features = data_fetching.fetch_and_preprocess_data()
 
-# Convert data to H2O data frames
+# Reshape the data to 2D
+X_train_2d = X_train.reshape((X_train.shape[0], -1))
+X_test_2d = X_test.reshape((X_test.shape[0], -1))
+
+# Convert numpy arrays to H2O Frame
 X_train_h2o = h2o.H2OFrame(X_train)
 Y_train_h2o = h2o.H2OFrame(Y_train)
 X_test_h2o = h2o.H2OFrame(X_test)
 Y_test_h2o = h2o.H2OFrame(Y_test)
 
+
 # Combine features and target into a single data frame
 train_data = X_train_h2o.cbind(Y_train_h2o)
 test_data = X_test_h2o.cbind(Y_test_h2o)
 
+# Print the column names
+print(train_data.columns)
+
 # Define the column names
 x = train_data.columns
-y = "target"  # Replace with the name of your target column
+y = "C1100"
 x.remove(y)
 
 # Run AutoML
@@ -82,7 +90,7 @@ preds = model.predict(test_data)
 preds = preds.as_data_frame().values
 
 # Evaluate model
-train_predict, test_predict, train_rmse, test_rmse, train_mae, test_mae = model_evaluation.evaluate_model(Y_train, Y_test, train_predict, test_predict, target_scaler)
+train_predict, test_predict, train_rmse, test_rmse, train_mae, test_mae = model_evaluation.evaluate_model(Y_train, Y_test, preds, preds, target_scaler)
 
 # Connect to the database
 conn, cur = db_operations.connect_to_db()
