@@ -18,15 +18,20 @@ def train_model(X_train, Y_train, X_test, Y_test, look_back, num_features, model
     X_test_h2o = h2o.H2OFrame(X_test.values.tolist() if isinstance(X_test, pd.DataFrame) else X_test.tolist())
     Y_test_h2o = h2o.H2OFrame(Y_test.values.tolist() if isinstance(Y_test, pd.DataFrame) else Y_test.tolist())
 
-
     # Combine features and target into a single data frame
     train_data = X_train_h2o.cbind(Y_train_h2o)
     test_data = X_test_h2o.cbind(Y_test_h2o)
 
-    # Define the column names
+    # Get the column names
     x = train_data.columns
-    y = "target"  # Replace with the name of your target column
-    x.remove(y)
+    y = 'target'  # replace with your actual target column name
+
+    # Print out the target column name and the list of column names
+    print("Target column name: ", y)
+    print("List of column names: ", x)
+
+    if y in x:
+        x.remove(y)
 
     # Run AutoML
     aml = H2OAutoML(max_models=20, seed=1)
