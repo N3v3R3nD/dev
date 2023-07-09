@@ -57,6 +57,8 @@ X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_tr
 X_train_2d = X_train.reshape((X_train.shape[0], -1))
 X_test_2d = X_test.reshape((X_test.shape[0], -1))
 
+print("Shape of X_train: ", X_train.shape)
+print("First few items of X_train: ", X_train[:5])
 # Convert numpy arrays to H2O Frame
 X_train_h2o = h2o.H2OFrame(X_train)
 Y_train_h2o = h2o.H2OFrame(Y_train)
