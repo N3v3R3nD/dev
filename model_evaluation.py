@@ -13,7 +13,8 @@ def evaluate_model(Y_train, Y_test, train_predict, test_predict, target_scaler):
     Y_train = target_scaler.inverse_transform(Y_train.reshape(-1, 1))
     test_predict = target_scaler.inverse_transform(test_predict)
     Y_test = target_scaler.inverse_transform(Y_test.reshape(-1, 1))
-
+    print("Shape of Y_train: ", Y_train.shape)
+    print("Shape of train_predict: ", train_predict.shape)
     # Calculate root mean squared error
     train_rmse = np.sqrt(mean_squared_error(Y_train, train_predict))
     logging.info(f'Train Score: {train_rmse} RMSE')
