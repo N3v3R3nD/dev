@@ -1,0 +1,1 @@
+{"batch_size": 32, "dropout_rate": 0.2, "epochs": 100, "optimizer": "Adam", "units": 150}
