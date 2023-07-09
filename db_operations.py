@@ -46,7 +46,16 @@ def create_tables(cur):
         )
     """)
 
-def insert_data(cur, Y_train, train_predict, test_predict, target_scaler):    
+    # Create forecasted_prices table if it doesn't exist
+    logging.info('Creating forecasted_prices table if it doesn\'t exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS forecasted_prices (
+            date DATE PRIMARY KEY,
+            forecasted_price FLOAT
+        )
+    """)
+
+def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, target_scaler):    
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
@@ -63,6 +72,19 @@ def insert_data(cur, Y_train, train_predict, test_predict, target_scaler):
             VALUES ('{date}', {actual_price}, {predicted_price}) 
             ON CONFLICT (date) DO UPDATE 
             SET actual_price = {actual_price}, predicted_price = {predicted_price}
+        """)
+
+    # Insert forecasted prices into the database
+    logging.info('Inserting forecasted prices into the database')
+    for i in range(len(forecasted_prices)):
+        date = (datetime.today() + timedelta(days=i + 1)).strftime('%Y-%m-%d')  # Calculate the correct date
+        forecasted_price = forecasted_prices[i][0]
+        
+        cur.execute(f"""
+            INSERT INTO forecasted_prices (date, forecasted_price) 
+            VALUES ('{date}', {forecasted_price}) 
+            ON CONFLICT (date) DO UPDATE 
+            SET forecasted_price = {forecasted_price}
         """)
 
 def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae):
