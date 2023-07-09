@@ -102,8 +102,9 @@ conn, cur = db_operations.connect_to_db()
 db_operations.create_tables(cur)
 
 # Insert data
-# db_operations.insert_data(cur, history, Y_train, train_predict, test_predict, target_scaler)  # Commented out as history is not defined
 db_operations.insert_data(cur, Y_train, train_predict, test_predict, target_scaler)
+
+
 # Close the connection
 db_operations.close_connection(conn)
 
