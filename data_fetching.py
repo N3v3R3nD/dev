@@ -29,7 +29,7 @@ def fetch_and_preprocess_data():
 
     # Fetch macroeconomic data using FRED
     logging.info('Fetching macroeconomic data using FRED')
-    start_date = '1993-01-29'
+    start_date = '2020-01-29'
     end_date = today
     gdp = pdr.get_data_fred('GDP', start_date, end_date)
     unemployment = pdr.get_data_fred('UNRATE', start_date, end_date)
@@ -143,6 +143,7 @@ def fetch_and_preprocess_data():
     # Convert lists to numpy arrays
     X_train, Y_train = np.array(X_train), np.array(Y_train)
     X_test, Y_test = np.array(X_test), np.array(Y_test)
+    
     # Reshape the data to 2D
     X_train_2d = X_train.reshape((X_train.shape[0], -1))
     X_test_2d = X_test.reshape((X_test.shape[0], -1))
