@@ -60,15 +60,10 @@ X_test_2d = X_test.reshape((X_test.shape[0], -1))
 print("Shape of X_train: ", X_train.shape)
 print("First few items of X_train: ", X_train[:5])
 # Convert numpy arrays to H2O Frame
-X_train_h2o = h2o.H2OFrame(X_train.tolist())
-Y_train_h2o = h2o.H2OFrame(Y_train.tolist())
-X_test_h2o = h2o.H2OFrame(X_test.tolist())
-Y_test_h2o = h2o.H2OFrame(Y_test.tolist())
-
-print(X_train.shape)
-print(Y_train.shape)
-print(X_test.shape)
-print(Y_test.shape)
+X_train_h2o = h2o.H2OFrame(X_train_2d.tolist())
+Y_train_h2o = h2o.H2OFrame(Y_train)
+X_test_h2o = h2o.H2OFrame(X_test_2d.tolist())
+Y_test_h2o = h2o.H2OFrame(Y_test)
 
 # Combine features and target into a single data frame
 train_data = X_train_h2o.cbind(Y_train_h2o)
@@ -90,13 +85,15 @@ aml.train(x=x, y=y, training_frame=train_data)
 model = aml.leader
 
 # Make predictions
-preds = model.predict(test_data)
+train_preds = model.predict(train_data)
+test_preds = model.predict(test_data)
 
 # Convert predictions to numpy array
-preds = preds.as_data_frame().values
+train_preds = train_preds.as_data_frame().values
+test_preds = test_preds.as_data_frame().values
 
 # Evaluate model
-train_predict, test_predict, train_rmse, test_rmse, train_mae, test_mae = model_evaluation.evaluate_model(Y_train, Y_test, preds, preds, target_scaler)
+train_predict, test_predict, train_rmse, test_rmse, train_mae, test_mae = model_evaluation.evaluate_model(Y_train, Y_test, train_preds, test_preds, target_scaler)
 
 # Connect to the database
 conn, cur = db_operations.connect_to_db()
