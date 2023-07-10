@@ -1,23 +1,32 @@
-# model_training.py
-import logging 
-import h2o
+# main.py
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ["OMP_NUM_THREADS"] = str(os.cpu_count())
 import numpy as np
 import pandas as pd
-from h2o.automl import H2OAutoML
+import logging
+import json
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV, train_test_split
+from datetime import datetime, timedelta
+import time
+from sklearn.preprocessing import StandardScaler
+import pandas_datareader as pdr
+from pandas.tseries.holiday import USFederalHolidayCalendar
+import data_fetching
+import db_operations
+import model_evaluation
+from model_training import train_model
 import config
+import h2o
+from h2o.automl import H2OAutoML
 
-logging.basicConfig(level=logging.INFO)
+forecast_steps = config.forecast_steps
 # Initialize the H2O cluster
 h2o.init()
 
-forecast_steps = config.forecast_steps
-
 # Set up logging
-logging.basicConfig(
-    filename='next1.log',
-    level=logging.INFO,  # Set the logging level to INFO or DEBUG
-    format='%(asctime)s %(levelname)s %(message)s'
-)
+logging.basicConfig(filename='next1.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
 # Create a console handler
 console_handler = logging.StreamHandler()
@@ -32,77 +41,51 @@ logging.getLogger('').addHandler(console_handler)
 
 logging.info('Starting script')
 
-def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params):
-    logging.info("Starting model training")
+try:
+    # Fetch and preprocess data
+    logging.info('Fetching and preprocessing data')
+    X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features = data_fetching.fetch_and_preprocess_data()
+
+    # Check that the shapes of the input data are as expected
+    assert X_train.shape[1] == forecast_steps, 'Unexpected shape of X_train'
+    assert X_test.shape[1] == forecast_steps, 'Unexpected shape of X_test'
+    assert Y_train.ndim == 1, 'Unexpected shape of Y_train'
+    assert Y_test.ndim == 1, 'Unexpected shape of Y_test'
+
+    # Call the train_model function and get the results
+    model, (train_preds, test_preds), forecast = train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params=None)
+    # Log shapes for debugging
+    logging.info(f'Shape of Y_train: {np.shape(Y_train)}')
+    logging.info(f'Shape of train_preds: {np.shape(train_preds)}')
+    logging.info(f'Shape of test_preds: {np.shape(test_preds)}')
+    logging.info(f'Shape of forecast: {np.shape(forecast)}')
+    # Evaluate model
+    train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(model, Y_train, Y_test, train_preds, test_preds)
     
-    # Reshape data if it's a 3D numpy array
-    if isinstance(X_train, np.ndarray) and len(X_train.shape) == 3:
-        X_train = X_train.reshape(X_train.shape[0], -1)
-    if isinstance(X_test, np.ndarray) and len(X_test.shape) == 3:
-        X_test = X_test.reshape(X_test.shape[0], -1)
+    # Connect to the database
+    conn, cur = db_operations.connect_to_db()
 
-    # Convert data to H2O data frames
-    logging.info(f"Convert data to H2O data frames")
-    X_train_h2o = h2o.H2OFrame(X_train if isinstance(X_train, pd.DataFrame) else X_train.tolist())
-    Y_train_h2o = h2o.H2OFrame(Y_train if isinstance(Y_train, pd.DataFrame) else Y_train.tolist())
-    X_test_h2o = h2o.H2OFrame(X_test if isinstance(X_test, pd.DataFrame) else X_test.tolist())
-    Y_test_h2o = h2o.H2OFrame(Y_test if isinstance(Y_test, pd.DataFrame) else Y_test.tolist())
+    # Create tables
+    db_operations.create_tables(cur)
+    
+    # Insert data
+    db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
+  
+    # Insert forecast into the database
+    db_operations.insert_forecast(cur, forecast)
 
-    # Combine features and target into a single data frame
-    train_data = X_train_h2o.cbind(Y_train_h2o)
-    test_data = X_test_h2o.cbind(Y_test_h2o)
+    # Insert evaluation results
+    db_operations.insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
 
-    y = config.target_column_name  # Define the target column name
-    x = train_data.columns  # Define the feature column names
-    x.remove(y)
+    # Commit changes
+    conn.commit()
 
-    logging.info(f"Target column name: {y}")
-    logging.info(f"List of column names: {x}")
+    # Close connection
+    db_operations.close_connection(conn)
 
-    # Run AutoML
-    aml = H2OAutoML(max_models=20, seed=1)
-    aml.train(x=x, y=y, training_frame=train_data)
+except Exception as e:
+    logging.error(f'An error occurred: {e}')
+    # Optionally, you can raise the exception again to stop the script
+    raise
 
-    # Get the best model
-    model = aml.leader
-
-    # Make predictions
-    train_preds = model.predict(train_data)
-    test_preds = model.predict(test_data)
-
-    # Convert predictions to numpy array and flatten them
-    train_preds = train_preds.as_data_frame().values.flatten()
-    test_preds = test_preds.as_data_frame().values.flatten()
-
-    # Log the shapes for debugging
-    logging.debug(f'Shape of train_preds: {train_preds.shape}')
-    logging.debug(f'Shape of Y_train: {Y_train.shape}')
-    logging.debug(f'Shape of test_preds: {test_preds.shape}')
-    logging.debug(f'Shape of Y_test: {Y_test.shape}')
-
-    # Check that the shapes of the predictions are as expected
-    assert train_preds.shape == Y_train.shape, 'Unexpected shape of train_preds'
-    assert test_preds.shape == Y_test.shape, 'Unexpected shape of test_preds'
-
-    # Print or log the predictions
-    logging.info(f'Train predictions: {train_preds}')
-    logging.info(f'Test predictions: {test_preds}')
-
-    # Generate new input data for forecast
-    logging.debug(f'X_test shape: {X_test.shape}')  
-    logging.debug(f'forecast_steps: {forecast_steps}')  
-    forecast_input = X_test[-forecast_steps:]  # Get the most recent observations
-
-    # Flatten the forecast_input before converting to H2OFrame
-    forecast_input_flattened = forecast_input.reshape(-1, forecast_input.shape[-1])
-
-    # Convert forecast input to H2O data frame
-    forecast_input_h2o = h2o.H2OFrame(forecast_input_flattened)
-
-    # Make forecast
-    forecast = model.predict(forecast_input_h2o)
-
-    # Convert forecast to numpy array
-    forecast = forecast.as_data_frame().values.flatten()
-    logging.info("Model training completed")
-    return model, (train_preds, test_preds), forecast
+logging.info('Script completed')
