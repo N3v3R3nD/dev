@@ -102,7 +102,7 @@ def insert_forecast(cur, forecast):
         forecast = forecast.tolist()
 
     # SQL query to insert forecast into the database
-    query = "INSERT INTO forecasted_prices (date, price) VALUES (%s, %s)"
+    query = "INSERT INTO forecasted_prices (date, forecasted_price) VALUES (%s, %s)"
 
     # Get today's date
     today = datetime.today()
