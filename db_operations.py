@@ -2,7 +2,7 @@ import psycopg2
 from datetime import datetime, timedelta
 import logging
 import config
-
+import numpy as np
 # Extract database credentials from config
 db_config = config.database
 host = db_config['host']
@@ -92,6 +92,7 @@ def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, ta
             ON CONFLICT (date) DO UPDATE 
             SET forecasted_price = {forecasted_price}
         """)
+
 
 
 def insert_forecast(cur, forecast):
