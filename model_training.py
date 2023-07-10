@@ -1,4 +1,4 @@
-import logging  # Import the logging module
+import logging 
 import h2o
 import numpy as np
 import pandas as pd
@@ -8,12 +8,10 @@ import config
 # Initialize the H2O cluster
 h2o.init()
 
-# Access the parameters
-use_kfold = config.use_kfold
-kfold_splits = config.kfold_splits
-early_stopping_patience = config.early_stopping_patience
+forecast_steps = config.forecast_steps
 
-def train_model(X_train, Y_train, X_test, Y_test, look_back, num_features, model_params):
+def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params):
+    logging.info("Starting model training")
     # Reshape data if it's a 3D numpy array
     if isinstance(X_train, np.ndarray) and len(X_train.shape) == 3:
         X_train = X_train.reshape(X_train.shape[0], -1)
@@ -31,9 +29,8 @@ def train_model(X_train, Y_train, X_test, Y_test, look_back, num_features, model
     test_data = X_test_h2o.cbind(Y_test_h2o)
 
     # Print out the target column name and the list of column names
-    print("Target column name: ", y)
-    print("List of column names: ", x)
-
+    logging.debug("Target column name: ", y)
+    logging.debug("List of column names: ", x)
     x.remove(y)
 
     # Run AutoML
@@ -50,7 +47,7 @@ def train_model(X_train, Y_train, X_test, Y_test, look_back, num_features, model
     preds = preds.as_data_frame().values
 
     # Generate new input data for forecast
-    forecast_input = X_test[-look_back:]  # Get the most recent observations
+    forecast_input = X_test[-forecast_steps:]  # Get the most recent observations
 
     # Convert forecast input to H2O data frame
     forecast_input_h2o = h2o.H2OFrame(forecast_input if isinstance(forecast_input, pd.DataFrame) else forecast_input.tolist())
@@ -60,5 +57,5 @@ def train_model(X_train, Y_train, X_test, Y_test, look_back, num_features, model
 
     # Convert forecast to numpy array
     forecast = forecast.as_data_frame().values
-
+    logging.info("Model training completed")
     return model, preds, forecast
