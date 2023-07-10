@@ -87,15 +87,33 @@ def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, ta
             SET forecasted_price = {forecasted_price}
         """)
 
-def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae):
-    # Insert evaluation results into the database
-    logging.info('Inserting evaluation results into the database')
-    cur.execute(f"""
-        INSERT INTO evaluation_results (train_rmse, test_rmse, train_mae, test_mae) 
-        VALUES ({train_rmse}, {test_rmse}, {train_mae}, {test_mae})
-    """)
+def insert_forecast(cur, forecast):
+    logging.info("Inserting forecast")
+    # Convert forecast to list if it's a numpy array
+    if isinstance(forecast, np.ndarray):
+        forecast = forecast.tolist()
+
+    # SQL query to insert forecast into the database
+    query = "INSERT INTO forecasted_prices (date, price) VALUES (%s, %s)"
+
+    # Get today's date
+    today = datetime.date.today()
+
+    # Insert each forecasted price into the database
+    for i, price in enumerate(forecast):
+        date = today + datetime.timedelta(days=i+1)  # The date is the current date plus the forecast horizon
+        cur.execute(query, (date, price))
+
+def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
+    logging.info("Inserting evaluation results")
+    # SQL query to insert evaluation results into the database
+    query = """
+        INSERT INTO evaluation_results (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    cur.execute(query, (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2))
 
 def close_connection(conn):
-    # Commit changes and close connection
-    conn.commit()
+    logging.info("Closing connection")
+    # Close the database connection
     conn.close()
