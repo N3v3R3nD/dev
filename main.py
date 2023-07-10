@@ -72,7 +72,9 @@ try:
     train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(model, Y_train, Y_test, train_preds, test_preds)
     
 
-
+    # Connect to the database
+    conn, cur = db_operations.connect_to_db()
+    
     # Insert data
     db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
 
