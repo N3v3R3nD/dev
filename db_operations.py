@@ -1,8 +1,11 @@
-import psycopg2
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
+
+import psycopg2
+
 import config
 import numpy as np
+
 
 # Extract database credentials from config
 db_config = config.database
@@ -62,17 +65,17 @@ def create_tables(cur):
         )
     """)
 
-def insert_data(cur, Y_train, train_predict, target_scaler):    
+def insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler):
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
-    if Y_train.shape[0] != train_predict.shape[0]:
-        raise ValueError("Length of Y_train and train_predict don't match")
+    if Y_train.shape[0] != train_preds.shape[0]:
+        raise ValueError("Length of Y_train and train_preds don't match")
 
     for i in range(len(Y_train)):
         date = (datetime.today() - timedelta(days=len(Y_train) - i - 1)).strftime('%Y-%m-%d')  # Calculate the correct date
         actual_price = target_scaler.inverse_transform(Y_train[i].reshape(-1, 1))[0][0]
-        predicted_price = train_predict[i]
+        predicted_price = train_preds[i]
         
         cur.execute(f"""
             INSERT INTO actual_vs_predicted (date, actual_price, predicted_price) 
