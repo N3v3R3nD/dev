@@ -42,6 +42,12 @@ def create_tables(cur):
             test_rmse FLOAT,
             train_mae FLOAT,
             test_mae FLOAT,
+            train_rae FLOAT,
+            test_rae FLOAT,
+            train_rse FLOAT,
+            test_rse FLOAT,
+            train_r2 FLOAT,
+            test_r2 FLOAT,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -59,13 +65,13 @@ def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, ta
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
-    if len(Y_train) != len(train_predict):
+    if Y_train.shape[0] != train_predict.shape[0]:
         raise ValueError("Length of Y_train and train_predict don't match")
 
     for i in range(len(Y_train)):
         date = (datetime.today() - timedelta(days=len(Y_train) - i - 1)).strftime('%Y-%m-%d')  # Calculate the correct date
         actual_price = target_scaler.inverse_transform(Y_train[i].reshape(-1, 1))[0][0]
-        predicted_price = train_predict[i][0]
+        predicted_price = train_predict[i]
         
         cur.execute(f"""
             INSERT INTO actual_vs_predicted (date, actual_price, predicted_price) 
@@ -78,7 +84,7 @@ def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, ta
     logging.info('Inserting forecasted prices into the database')
     for i in range(len(forecasted_prices)):
         date = (datetime.today() + timedelta(days=i + 1)).strftime('%Y-%m-%d')  # Calculate the correct date
-        forecasted_price = forecasted_prices[i][0]
+        forecasted_price = forecasted_prices[i]
         
         cur.execute(f"""
             INSERT INTO forecasted_prices (date, forecasted_price) 
@@ -86,6 +92,7 @@ def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, ta
             ON CONFLICT (date) DO UPDATE 
             SET forecasted_price = {forecasted_price}
         """)
+
 
 def insert_forecast(cur, forecast):
     logging.info("Inserting forecast")
