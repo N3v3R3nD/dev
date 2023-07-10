@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import logging
 import config
 import numpy as np
+
 # Extract database credentials from config
 db_config = config.database
 host = db_config['host']
@@ -61,7 +62,7 @@ def create_tables(cur):
         )
     """)
 
-def insert_data(cur, Y_train, train_predict, test_predict, target_scaler):    
+def insert_data(cur, Y_train, train_predict, target_scaler):    
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
@@ -86,16 +87,22 @@ def insert_forecast(cur, forecast):
     if isinstance(forecast, np.ndarray):
         forecast = forecast.tolist()
 
-    # SQL query to insert forecast into the database
-    query = "INSERT INTO forecasted_prices (date, forecasted_price) VALUES (%s, %s)"
+    # SQL query to insert or update forecast in the database
+    query = """
+        INSERT INTO forecasted_prices (date, forecasted_price) 
+        VALUES (%s, %s) 
+        ON CONFLICT (date) 
+        DO UPDATE SET forecasted_price = EXCLUDED.forecasted_price
+    """
 
     # Get today's date
     today = datetime.today()
 
-    # Insert each forecasted price into the database
+    # Insert or update each forecasted price in the database
     for i, price in enumerate(forecast):
         date = today + timedelta(days=i+1)  # The date is the current date plus the forecast horizon
         cur.execute(query, (date, price))
+
 
 def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
     logging.info("Inserting evaluation results")
