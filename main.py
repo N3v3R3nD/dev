@@ -66,8 +66,8 @@ try:
     db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
 
     # Insert forecast into the database
-    db_operations.insert_forecast(cur, forecast)
-
+    db_operations.insert_forecast(cur, forecast, target_scaler)
+    
     # Insert evaluation results
     db_operations.insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
 
