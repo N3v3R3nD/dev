@@ -65,6 +65,17 @@ def create_tables(cur):
         )
     """)
 
+    # Create fetched_data table if it doesn't exist
+    logging.info('Creating fetched_data table if it doesn\'t exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fetched_data (
+            date DATE PRIMARY KEY,
+            open_price FLOAT
+        )
+    """)
+
+
+
 def insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler):
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
@@ -110,6 +121,18 @@ def insert_forecast(cur, forecast, target_scaler):
 
         cur.execute(query, (date, forecasted_price))
 
+
+def insert_fetched_data(cur, data):
+    logging.info('Inserting fetched data into the database')
+    for index, row in data.iterrows():
+        date = index.strftime('%Y-%m-%d')
+        open_price = row['Open']
+        cur.execute(f"""
+            INSERT INTO fetched_data (date, open_price) 
+            VALUES ('{date}', {open_price}) 
+            ON CONFLICT (date) DO UPDATE 
+            SET open_price = {open_price}
+        """)
 
 
 def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
