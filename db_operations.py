@@ -55,6 +55,19 @@ def create_tables(cur):
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Create fetched_data table if it doesn't exist
+    logging.info('Creating fetched_data table if it does not exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fetched_data (
+            date DATE PRIMARY KEY,
+            open_price FLOAT,
+            high_price FLOAT,
+            low_price FLOAT,
+            close_price FLOAT,
+            adj_close_price FLOAT,
+            volume FLOAT
+        )
+    """)
 
     # Create forecasted_prices table if it doesn't exist
     logging.info('Creating forecasted_prices table if it doesn\'t exist')
@@ -65,27 +78,18 @@ def create_tables(cur):
         )
     """)
 
-    # Create fetched_data table if it doesn't exist
-    logging.info('Creating fetched_data table if it doesn\'t exist')
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS fetched_data (
-            date DATE PRIMARY KEY,
-            open_price FLOAT
-        )
-    """)
 
 
-
-def insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler):
+def insert_data(cur, Y_train, train_preds, forecast, target_scaler):
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
     if Y_train.shape[0] != train_preds.shape[0]:
         raise ValueError("Length of Y_train and train_preds don't match")
 
-    for i in range(len(Y_train)):
+    for i, actual_price in enumerate(Y_train):
         date = (datetime.today() - timedelta(days=len(Y_train) - i - 1)).strftime('%Y-%m-%d')  # Calculate the correct date
-        actual_price = target_scaler.inverse_transform(Y_train[i].reshape(-1, 1))[0][0]
+        actual_price = target_scaler.inverse_transform(actual_price.reshape(-1, 1))[0][0]
         predicted_price = target_scaler.inverse_transform(train_preds[i].reshape(-1, 1))[0][0]
 
         cur.execute(f"""
@@ -94,6 +98,7 @@ def insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler):
             ON CONFLICT (date) DO UPDATE 
             SET actual_price = {actual_price}, predicted_price = {predicted_price}
         """)
+
 
 
 def insert_forecast(cur, forecast, target_scaler):
@@ -124,14 +129,20 @@ def insert_forecast(cur, forecast, target_scaler):
 
 def insert_fetched_data(cur, data):
     logging.info('Inserting fetched data into the database')
-    for index, row in data.iterrows():
-        date = index.strftime('%Y-%m-%d')
-        open_price = row['Open']
+    for i in range(len(data)):
+        date = data.index[i].strftime('%Y-%m-%d')  # Get the date as a string
+        open_price = data['Open'].iloc[i]  # Get the open price
+        high_price = data['High'].iloc[i]  # Get the high price
+        low_price = data['Low'].iloc[i]  # Get the low price
+        close_price = data['Close'].iloc[i]  # Get the close price
+        adj_close_price = data['Adj Close'].iloc[i]  # Get the adjusted close price
+        volume = data['Volume'].iloc[i]  # Get the volume
+
         cur.execute(f"""
-            INSERT INTO fetched_data (date, open_price) 
-            VALUES ('{date}', {open_price}) 
+            INSERT INTO fetched_data (date, open_price, high_price, low_price, close_price, adj_close_price, volume) 
+            VALUES ('{date}', {open_price}, {high_price}, {low_price}, {close_price}, {adj_close_price}, {volume}) 
             ON CONFLICT (date) DO UPDATE 
-            SET open_price = {open_price}
+            SET open_price = {open_price}, high_price = {high_price}, low_price = {low_price}, close_price = {close_price}, adj_close_price = {adj_close_price}, volume = {volume}
         """)
 
 
@@ -143,6 +154,7 @@ def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, t
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
     cur.execute(query, (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2))
+    logging.debug(f"Inserted evaluation results")
 
 def close_connection(conn):
     logging.info("Closing connection")
