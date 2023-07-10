@@ -1,6 +1,7 @@
 # main.py
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ["OMP_NUM_THREADS"] = str(os.cpu_count())
 import yfinance as yf
 import psycopg2
 import numpy as np
@@ -108,7 +109,7 @@ try:
     logging.info(f'Test predictions: {test_preds}')
 
     # Evaluate model
-    train_predict, test_predict, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(Y_train, Y_test, train_preds, test_preds)
+    train_predict, test_predict, predicted_test, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(Y_train, Y_test, train_preds, test_preds)
 
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
