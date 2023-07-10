@@ -34,8 +34,9 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     x = train_data.columns  # Define the feature column names
     x.remove(y)
 
-    logging.debug("Target column name: ", y)
-    logging.debug("List of column names: ", x)
+    logging.debug(f"Target column name: {y}")
+    logging.debug(f"List of column names: {x}")
+
 
     # Run AutoML
     aml = H2OAutoML(max_models=20, seed=1)
@@ -81,6 +82,6 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     forecast = model.predict(forecast_input_h2o)
 
     # Convert forecast to numpy array
-    forecast = forecast.as_data_frame().values
+    forecast = forecast.as_data_frame().values.flatten()
     logging.info("Model training completed")
     return model, (train_preds, test_preds), forecast
