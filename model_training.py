@@ -6,8 +6,10 @@ import pandas as pd
 from h2o.automl import H2OAutoML
 import config
 
+logging.basicConfig(level=logging.INFO)
 # Initialize the H2O cluster
 h2o.init()
+logging.basicConfig(filename='next1.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
 forecast_steps = config.forecast_steps
 
@@ -21,6 +23,7 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
         X_test = X_test.reshape(X_test.shape[0], -1)
 
     # Convert data to H2O data frames
+    logging.info(f"Convert data to H2O data frames")
     X_train_h2o = h2o.H2OFrame(X_train if isinstance(X_train, pd.DataFrame) else X_train.tolist())
     Y_train_h2o = h2o.H2OFrame(Y_train if isinstance(Y_train, pd.DataFrame) else Y_train.tolist())
     X_test_h2o = h2o.H2OFrame(X_test if isinstance(X_test, pd.DataFrame) else X_test.tolist())
@@ -34,9 +37,8 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     x = train_data.columns  # Define the feature column names
     x.remove(y)
 
-    logging.debug(f"Target column name: {y}")
-    logging.debug(f"List of column names: {x}")
-
+    logging.info(f"Target column name: {y}")
+    logging.info(f"List of column names: {x}")
 
     # Run AutoML
     aml = H2OAutoML(max_models=20, seed=1)
@@ -73,7 +75,7 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     forecast_input = X_test[-forecast_steps:]  # Get the most recent observations
 
     # Flatten the forecast_input before converting to H2OFrame
-    forecast_input_flattened = forecast_input.reshape(-1, forecast_input.shape[-1])
+    forecast_input_flattened = forecast_input.reshape(-1, forecast_input.shape[-1]).tolist()
 
     # Convert forecast input to H2O data frame
     forecast_input_h2o = h2o.H2OFrame(forecast_input_flattened.tolist())
