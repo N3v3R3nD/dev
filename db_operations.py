@@ -1,166 +1,127 @@
-# data_fetching.py
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+
+import psycopg2
 
 import config
-import h2o
 import numpy as np
-import pandas as pd
-import pandas_datareader as pdr
-import yfinance as yf
-from pandas.tseries.holiday import USFederalHolidayCalendar
-from sklearn.preprocessing import StandardScaler
 
 
-def fetch_and_preprocess_data():
+# Extract database credentials from config
+db_config = config.database
+host = db_config['host']
+database = db_config['database']
+user = db_config['user']
+password = db_config['password']
 
-    # Access the parameters
-    forecast_steps = config.forecast_steps
-    yfinance_symbol = config.yfinance_symbol
+def connect_to_db():
+    # Connect to the database
+    logging.info('Connecting to the database')
+    conn = psycopg2.connect(
+        host=host,
+        database=database,
+        user=user,
+        password=password
+    )
+    cur = conn.cursor()
+    return conn, cur
 
-    # Fetch data using yfinance
-    logging.info('Fetching data using yfinance')
-    today = datetime.today().strftime('%Y-%m-%d')
-    data = yf.download(yfinance_symbol, start='2020-01-29', end=today)
-    logging.info('Data downloaded from Yahoo Finance')
-    logging.info('Data shape: %s', data.shape)
-    logging.info('First few rows of the data:')
+def create_tables(cur):
+    # Create actual_vs_predicted table if it doesn't exist
+    logging.info('Creating actual_vs_predicted table if it does not exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS actual_vs_predicted (
+            date DATE PRIMARY KEY,
+            actual_price FLOAT,
+            predicted_price FLOAT
+        )
+    """)
 
-    # Fetch macroeconomic data using FRED
-    logging.info('Fetching macroeconomic data using FRED')
-    start_date = '2020-01-29'
-    end_date = today
-    gdp = pdr.get_data_fred('GDP', start_date, end_date)
-    unemployment = pdr.get_data_fred('UNRATE', start_date, end_date)
+    # Create evaluation_results table if it doesn't exist
+    logging.info('Creating evaluation_results table if it doesn\'t exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS evaluation_results (
+            id SERIAL PRIMARY KEY,
+            train_rmse FLOAT,
+            test_rmse FLOAT,
+            train_mae FLOAT,
+            test_mae FLOAT,
+            train_rae FLOAT,
+            test_rae FLOAT,
+            train_rse FLOAT,
+            test_rse FLOAT,
+            train_r2 FLOAT,
+            test_r2 FLOAT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
-    # Preprocess macroeconomic data
-    logging.info('Preprocessing macroeconomic data')
-    gdp = gdp.resample('D').ffill()  # Fill missing values by forward filling
-    unemployment = unemployment.resample('D').ffill()  # Fill missing values by forward filling
+    # Create forecasted_prices table if it doesn't exist
+    logging.info('Creating forecasted_prices table if it doesn\'t exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS forecasted_prices (
+            date DATE PRIMARY KEY,
+            forecasted_price FLOAT
+        )
+    """)
 
-    # Merge macroeconomic data with existing data
-    logging.info('Merging macroeconomic data with existing data')
-    data = pd.merge(data, gdp, how='left', left_index=True, right_index=True)
-    data = pd.merge(data, unemployment, how='left', left_index=True, right_index=True)
+def insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler):
+    # Insert actual and predicted prices into the database
+    logging.info('Inserting actual and predicted prices into the database')
 
-    # Engineer features from macroeconomic data
-    logging.info('Engineering features from macroeconomic data')
-    data['GDP Change'] = data['GDP'].pct_change()
-    data['Unemployment Change'] = data['UNRATE'].pct_change()
+    if Y_train.shape[0] != train_preds.shape[0]:
+        raise ValueError("Length of Y_train and train_preds don't match")
 
-    # Drop original macroeconomic columns
-    data = data.drop(columns=['GDP', 'UNRATE'])
+    for i in range(len(Y_train)):
+        date = (datetime.today() - timedelta(days=len(Y_train) - i - 1)).strftime('%Y-%m-%d')  # Calculate the correct date
+        actual_price = target_scaler.inverse_transform(Y_train[i].reshape(-1, 1))[0][0]
+        predicted_price = target_scaler.inverse_transform(train_preds[i].reshape(-1, 1))[0][0]
 
-    # Add day of the week feature
-    data['DayOfWeek'] = data.index.dayofweek
+        cur.execute(f"""
+            INSERT INTO actual_vs_predicted (date, actual_price, predicted_price) 
+            VALUES ('{date}', {actual_price}, {predicted_price}) 
+            ON CONFLICT (date) DO UPDATE 
+            SET actual_price = {actual_price}, predicted_price = {predicted_price}
+        """)
 
-    # Add month of the year feature
-    data['Month'] = data.index.month
 
-    # Add is holiday feature
-    cal = USFederalHolidayCalendar()
-    holidays = cal.holidays(start=data.index.min(), end=data.index.max())
-    data['IsHoliday'] = data.index.isin(holidays).astype(int)
+def insert_forecast(cur, forecast, target_scaler):
+    logging.info("Inserting forecast")
+    # Convert forecast to list if it's a numpy array
+    if isinstance(forecast, np.ndarray):
+        forecast = forecast.tolist()
 
-    # Filter out non-business days
-    data = data[data.index.dayofweek < 5]
+    # Get today's date
+    today = datetime.today()
 
-    # Add technical indicators
-    data['SMA'] = data['Close'].rolling(window=14).mean()
-    data['EMA'] = data['Close'].ewm(span=14).mean()
-    delta = data['Close'].diff()
-    up = delta.clip(lower=0)
-    down = -1 * delta.clip(upper=0)
-    ema_up = up.ewm(com=13, adjust=False).mean()
-    ema_down = down.ewm(com=13, adjust=False).mean()
-    rs = ema_up / ema_down
-    data['RSI'] = 100 - (100 / (1 + rs))
-    exp1 = data['Close'].ewm(span=12, adjust=False).mean()
-    exp2 = data['Close'].ewm(span=26, adjust=False).mean()
-    macd = exp1 - exp2
-    signal = macd.ewm(span=9, adjust=False).mean()
-    data['MACD'] = macd - signal
-    data['MA20'] = data['Close'].rolling(window=20).mean()
-    data['20dSTD'] = data['Close'].rolling(window=20).std()
-    data['Upper'] = data['MA20'] + (data['20dSTD'] * 2)
-    data['Lower'] = data['MA20'] - (data['20dSTD'] * 2)
-    data['Cum_Daily_Returns'] = (data['Close'] / data['Close'].shift(1)) - 1
-    data['Cumulative_Returns'] = (1 + data['Cum_Daily_Returns']).cumprod()
-    data['VWAP'] = (data['Close'] * data['Volume']).cumsum() / data['Volume'].cumsum()
-    data = data.dropna()
+    # SQL query to insert or update forecast in the database
+    query = """
+        INSERT INTO forecasted_prices (date, forecasted_price) 
+        VALUES (%s, %s) 
+        ON CONFLICT (date) 
+        DO UPDATE SET forecasted_price = EXCLUDED.forecasted_price
+    """
+    # Insert or update each forecasted price in the database
+    for i, price in enumerate(forecast):
+        date = today + timedelta(days=i+1)  # The date is the current date plus the forecast horizon
 
-    # Select features
-    logging.info('Selecting features')
-    features = data[['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA', 'EMA', 'RSI', 'MACD', 'Upper', 'Lower', 'Cumulative_Returns', 'VWAP', 'GDP Change', 'Unemployment Change']]
-    num_features = len(features.columns)  # Get the number of features
-    logging.info('Features: ' + str(features.columns.tolist()))  # Log the order of features
-    print(features.columns)
-    # Handle outliers
-    logging.info('Handling outliers')
-    Q1 = features.quantile(0.25)
-    Q3 = features.quantile(0.75)
-    IQR = Q3 - Q1
-    features = features[~((features < (Q1 - 1.5 * IQR)) | (features > (Q3 + 1.5 * IQR))).any(axis=1)]
+        # Inverse transform the forecasted price
+        forecasted_price = target_scaler.inverse_transform(np.array([[price]]))[0][0]
 
-    # Preprocess data
-    logging.info('Preprocessing data')
-    feature_scaler = StandardScaler()
-    target_scaler = StandardScaler()
+        cur.execute(query, (date, forecasted_price))
 
-    # Split data into training and test sets
-    logging.info('Splitting data into training and test sets')
-    split = int(0.8 * len(features))
-    train_features = features[:split]
-    test_features = features[split:]
 
-    # Fit the scaler on the training data and transform both training and test data
-    logging.info('Scaling data')
-    scaled_train_features = feature_scaler.fit_transform(train_features)
-    scaled_test_features = feature_scaler.transform(test_features)
 
-    # Do the same for the target variable
-    train_target = features[['Open']][:split]
-    test_target = features[['Open']][split:]
-    scaled_train_target = target_scaler.fit_transform(train_target)
-    scaled_test_target = target_scaler.transform(test_target)
+def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
+    logging.info("Inserting evaluation results")
+    # SQL query to insert evaluation results into the database
+    query = """
+        INSERT INTO evaluation_results (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    cur.execute(query, (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2))
 
-    # Create the dataset for training
-    logging.info('Creating dataset for training')
-    X_train, Y_train = [], []
-    forecast_steps = forecast_steps 
-    for i in range(forecast_steps, len(train_features)):
-        X_train.append(scaled_train_features[i-forecast_steps:i, :])
-        Y_train.append(scaled_train_target[i, 0])
-
-    # Create the dataset for testing
-    logging.info('Creating dataset for testing')
-    X_test, Y_test = [], []
-    for i in range(forecast_steps, len(test_features)):
-        X_test.append(scaled_test_features[i-forecast_steps:i, :])
-        Y_test.append(scaled_test_target[i, 0]) 
-
-    # Convert lists to numpy arrays
-    X_train, Y_train = np.array(X_train), np.array(Y_train)
-    X_test, Y_test = np.array(X_test), np.array(Y_test)
-
-    # Reshape the data to 2D
-    X_train_2d = X_train.reshape((X_train.shape[0], -1))
-    X_test_2d = X_test.reshape((X_test.shape[0], -1))
-
-    # Convert data to H2O data frames
-    X_train_h2o = h2o.H2OFrame(X_train_2d)
-    Y_train_h2o = h2o.H2OFrame(Y_train)
-    X_test_h2o = h2o.H2OFrame(X_test_2d)
-    Y_test_h2o = h2o.H2OFrame(Y_test)
-
-    # Get the original column names
-    original_column_names = features.columns.tolist()
-
-    # Create new column names for the reshaped data
-    reshaped_column_names = [f"{name}_{i}" for name in original_column_names for i in range(forecast_steps)]
-
-    # Set the column names in the H2O data frames
-    X_train_h2o.columns = reshaped_column_names
-    X_test_h2o.columns = reshaped_column_names
-
-    return X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features
+def close_connection(conn):
+    logging.info("Closing connection")
+    # Close the database connection
+    conn.close()
