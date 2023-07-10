@@ -61,7 +61,7 @@ def create_tables(cur):
         )
     """)
 
-def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, target_scaler):    
+def insert_data(cur, Y_train, train_predict, test_predict, target_scaler):    
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
@@ -79,21 +79,6 @@ def insert_data(cur, Y_train, train_predict, test_predict, forecasted_prices, ta
             ON CONFLICT (date) DO UPDATE 
             SET actual_price = {actual_price}, predicted_price = {predicted_price}
         """)
-
-    # Insert forecasted prices into the database
-    logging.info('Inserting forecasted prices into the database')
-    for i in range(len(forecasted_prices)):
-        date = (datetime.today() + timedelta(days=i + 1)).strftime('%Y-%m-%d')  # Calculate the correct date
-        forecasted_price = forecasted_prices[i]
-        
-        cur.execute(f"""
-            INSERT INTO forecasted_prices (date, forecasted_price) 
-            VALUES ('{date}', {forecasted_price}) 
-            ON CONFLICT (date) DO UPDATE 
-            SET forecasted_price = {forecasted_price}
-        """)
-
-
 
 def insert_forecast(cur, forecast):
     logging.info("Inserting forecast")
