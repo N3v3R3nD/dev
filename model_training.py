@@ -9,9 +9,28 @@ import config
 logging.basicConfig(level=logging.INFO)
 # Initialize the H2O cluster
 h2o.init()
-logging.basicConfig(filename='next1.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
 forecast_steps = config.forecast_steps
+
+# Set up logging
+logging.basicConfig(
+    filename='next1.log',
+    level=logging.INFO,  # Set the logging level to INFO or DEBUG
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+
+# Create a console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Set the format for console output
+console_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# Add the console handler to the logger
+logging.getLogger('').addHandler(console_handler)
+
+logging.info('Starting script')
 
 def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params):
     logging.info("Starting model training")
@@ -75,10 +94,10 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     forecast_input = X_test[-forecast_steps:]  # Get the most recent observations
 
     # Flatten the forecast_input before converting to H2OFrame
-    forecast_input_flattened = forecast_input.reshape(-1, forecast_input.shape[-1]).tolist()
+    forecast_input_flattened = forecast_input.reshape(-1, forecast_input.shape[-1])
 
     # Convert forecast input to H2O data frame
-    forecast_input_h2o = h2o.H2OFrame(forecast_input_flattened.tolist())
+    forecast_input_h2o = h2o.H2OFrame(forecast_input_flattened)
 
     # Make forecast
     forecast = model.predict(forecast_input_h2o)
