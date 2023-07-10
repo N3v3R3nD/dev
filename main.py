@@ -7,7 +7,7 @@ import h2o
 import model_evaluation
 import numpy as np
 from model_training import train_model
-
+import psycopg2
 import db_operations
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -36,10 +36,25 @@ h2o.init()
 logging.info('Starting script')
 
 try:
+    # Connect to the database
+    conn, cur = db_operations.connect_to_db()
+
+    # Create tables
+    db_operations.create_tables(cur)
     # Fetch and preprocess data
+    
     logging.info('Fetching and preprocessing data')
     X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features = data_fetching.fetch_and_preprocess_data()
 
+    # Insert fetched data into the database
+    db_operations.insert_fetched_data(cur, data)
+
+    # Commit changes
+    conn.commit()
+
+    # Close connection
+    db_operations.close_connection(conn) # type: ignore
+    
     # Check that the shapes of the input data are as expected
     assert X_train.shape[1] == forecast_steps, 'Unexpected shape of X_train'
     assert X_test.shape[1] == forecast_steps, 'Unexpected shape of X_test'
@@ -56,12 +71,8 @@ try:
     # Evaluate model
     train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(model, Y_train, Y_test, train_preds, test_preds)
     
-    # Connect to the database
-    conn, cur = db_operations.connect_to_db()
 
-    # Create tables
-    db_operations.create_tables(cur)
-    
+
     # Insert data
     db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
 
