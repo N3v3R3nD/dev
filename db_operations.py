@@ -105,11 +105,11 @@ def insert_forecast(cur, forecast):
     query = "INSERT INTO forecasted_prices (date, price) VALUES (%s, %s)"
 
     # Get today's date
-    today = datetime.date.today()
+    today = datetime.today()
 
     # Insert each forecasted price into the database
     for i, price in enumerate(forecast):
-        date = today + datetime.timedelta(days=i+1)  # The date is the current date plus the forecast horizon
+        date = today + timedelta(days=i+1)  # The date is the current date plus the forecast horizon
         cur.execute(query, (date, price))
 
 def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
