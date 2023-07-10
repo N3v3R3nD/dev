@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 forecast_steps = config.forecast_steps
+automl_settings = config.automl_settings
 
 def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params):
     logging.info("Starting model training")
@@ -49,7 +50,7 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     logging.info(f"List of column names: {x}")
 
     # Run AutoML
-    aml = H2OAutoML(max_models=20, seed=1)
+    aml = H2OAutoML(**config.automl_settings)
     aml.train(x=x, y=y, training_frame=train_data)
 
     # Get the best model
