@@ -1,27 +1,19 @@
+import logging
 import os
+
+import config
+import data_fetching
+import h2o
+import model_evaluation
+import numpy as np
+from model_training import train_model
+
+import db_operations
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ["OMP_NUM_THREADS"] = str(os.cpu_count())
-import numpy as np
-import pandas as pd
-import logging
-import json
-from sklearn.metrics import mean_squared_error, mean_absolute_error
-from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV, train_test_split
-from datetime import datetime, timedelta
-import time
-from sklearn.preprocessing import StandardScaler
-import pandas_datareader as pdr
-from pandas.tseries.holiday import USFederalHolidayCalendar
-import data_fetching
-import db_operations
-import model_evaluation
-from model_training import train_model
-import config
-import h2o
-from h2o.automl import H2OAutoML
 
 forecast_steps = config.forecast_steps
-
 
 # Set up logging
 logging.basicConfig(filename='next1.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
@@ -34,17 +26,14 @@ console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 console_handler.setFormatter(console_formatter)
 
-# Get the root logger
-logger = logging.getLogger()
-
 # Add the console handler to the logger
-logger.addHandler(console_handler)
+logging.getLogger('').addHandler(console_handler)
 
 # Initialize the H2O cluster
 h2o.init()
 
 # Log to file as well
-logger.info('Starting script')
+logging.info('Starting script')
 
 try:
     # Fetch and preprocess data
@@ -74,7 +63,7 @@ try:
     db_operations.create_tables(cur)
     
     # Insert data
-    db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast)
+    db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
 
     # Insert forecast into the database
     db_operations.insert_forecast(cur, forecast)
