@@ -7,30 +7,9 @@ from h2o.automl import H2OAutoML
 import config
 
 logging.basicConfig(level=logging.INFO)
-# Initialize the H2O cluster
-h2o.init()
+
 
 forecast_steps = config.forecast_steps
-
-# Set up logging
-logging.basicConfig(
-    filename='next1.log',
-    level=logging.INFO,  # Set the logging level to INFO or DEBUG
-    format='%(asctime)s %(levelname)s %(message)s'
-)
-
-# Create a console handler
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# Set the format for console output
-console_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-console_handler.setFormatter(console_formatter)
-
-# Add the console handler to the logger
-logging.getLogger('').addHandler(console_handler)
-
-logging.info('Starting script')
 
 def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params):
     logging.info("Starting model training")
@@ -60,7 +39,7 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     logging.info(f"List of column names: {x}")
 
     # Run AutoML
-    aml = H2OAutoML(max_models=20, seed=1)
+    aml = H2OAutoML(max_models=1, seed=1)
     aml.train(x=x, y=y, training_frame=train_data)
 
     # Get the best model
