@@ -49,10 +49,10 @@ try:
     # Call the train_model function and get the results
     model, (train_preds, test_preds), forecast = train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params=None)
     # Log shapes for debugging
-    logging.info(f'Shape of Y_train: {np.shape(Y_train)}')
-    logging.info(f'Shape of train_preds: {np.shape(train_preds)}')
-    logging.info(f'Shape of test_preds: {np.shape(test_preds)}')
-    logging.info(f'Shape of forecast: {np.shape(forecast)}')
+    logging.info('Shape of Y_train: %s', np.shape(Y_train))
+    logging.info('Shape of train_preds: %s', np.shape(train_preds))
+    logging.info('Shape of test_preds: %s', np.shape(test_preds))
+    logging.info('Shape of forecast: %s', np.shape(forecast))
     # Evaluate model
     train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(model, Y_train, Y_test, train_preds, test_preds)
     
@@ -75,10 +75,10 @@ try:
     conn.commit()
 
     # Close connection
-    db_operations.close_connection(conn)
+    db_operations.close_connection(conn) # type: ignore
 
 except Exception as e:
-    logging.error(f'An error occurred: {e}')
+    logging.error('An error occurred: %s', e)
     # Optionally, you can raise the exception again to stop the script
     raise
 
