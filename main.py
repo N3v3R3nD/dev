@@ -1,4 +1,3 @@
-# main.py
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ["OMP_NUM_THREADS"] = str(os.cpu_count())
@@ -22,8 +21,7 @@ import h2o
 from h2o.automl import H2OAutoML
 
 forecast_steps = config.forecast_steps
-# Initialize the H2O cluster
-h2o.init()
+
 
 # Set up logging
 logging.basicConfig(filename='next1.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
@@ -36,10 +34,17 @@ console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 console_handler.setFormatter(console_formatter)
 
-# Add the console handler to the logger
-logging.getLogger('').addHandler(console_handler)
+# Get the root logger
+logger = logging.getLogger()
 
-logging.info('Starting script')
+# Add the console handler to the logger
+logger.addHandler(console_handler)
+
+# Initialize the H2O cluster
+h2o.init()
+
+# Log to file as well
+logger.info('Starting script')
 
 try:
     # Fetch and preprocess data
@@ -69,8 +74,8 @@ try:
     db_operations.create_tables(cur)
     
     # Insert data
-    db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
-  
+    db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast)
+
     # Insert forecast into the database
     db_operations.insert_forecast(cur, forecast)
 
