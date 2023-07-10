@@ -10,10 +10,11 @@ from pandas.tseries.holiday import USFederalHolidayCalendar
 from sklearn.preprocessing import StandardScaler
 import config
 import h2o
+
 def fetch_and_preprocess_data():
 
     # Access the parameters
-    look_back = config.look_back
+    forecast_steps = config.forecast_steps
     yfinance_symbol = config.yfinance_symbol
 
     # Set up logging
@@ -128,16 +129,16 @@ def fetch_and_preprocess_data():
     # Create the dataset for training
     logging.info('Creating dataset for training')
     X_train, Y_train = [], []
-    look_back = look_back 
-    for i in range(look_back, len(train_features)):
-        X_train.append(scaled_train_features[i-look_back:i, :])
+    forecast_steps = forecast_steps 
+    for i in range(forecast_steps, len(train_features)):
+        X_train.append(scaled_train_features[i-forecast_steps:i, :])
         Y_train.append(scaled_train_target[i, 0])
 
     # Create the dataset for testing
     logging.info('Creating dataset for testing')
     X_test, Y_test = [], []
-    for i in range(look_back, len(test_features)):
-        X_test.append(scaled_test_features[i-look_back:i, :])
+    for i in range(forecast_steps, len(test_features)):
+        X_test.append(scaled_test_features[i-forecast_steps:i, :])
         Y_test.append(scaled_test_target[i, 0]) 
 
     # Convert lists to numpy arrays
@@ -154,4 +155,4 @@ def fetch_and_preprocess_data():
     X_test_h2o = h2o.H2OFrame(X_test_2d)
     Y_test_h2o = h2o.H2OFrame(Y_test)
 
-    return X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, look_back, target_scaler, num_features
+    return X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features
