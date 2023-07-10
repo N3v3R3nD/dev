@@ -1,15 +1,16 @@
 # data_fetching.py
-import os
-import yfinance as yf
-import numpy as np
-import pandas as pd
 import logging
-from datetime import datetime, timedelta
-import pandas_datareader as pdr
-from pandas.tseries.holiday import USFederalHolidayCalendar
-from sklearn.preprocessing import StandardScaler
+from datetime import datetime
+
 import config
 import h2o
+import numpy as np
+import pandas as pd
+import pandas_datareader as pdr
+import yfinance as yf
+from pandas.tseries.holiday import USFederalHolidayCalendar
+from sklearn.preprocessing import StandardScaler
+from config import start_date, end_date, yfinance_symbol
 
 def fetch_and_preprocess_data():
 
@@ -17,21 +18,15 @@ def fetch_and_preprocess_data():
     forecast_steps = config.forecast_steps
     yfinance_symbol = config.yfinance_symbol
 
-    # Set up logging
-    logging.basicConfig(filename='next1.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-
     # Fetch data using yfinance
     logging.info('Fetching data using yfinance')
-    today = datetime.today().strftime('%Y-%m-%d')
-    data = yf.download(yfinance_symbol, start='2020-01-29', end=today)
+    data = yf.download(yfinance_symbol, start=start_date, end=end_date)
     logging.info('Data downloaded from Yahoo Finance')
-    logging.info(f'Data shape: {data.shape}')
+    logging.info('Data shape: %s', data.shape)
     logging.info('First few rows of the data:')
 
     # Fetch macroeconomic data using FRED
     logging.info('Fetching macroeconomic data using FRED')
-    start_date = '2020-01-29'
-    end_date = today
     gdp = pdr.get_data_fred('GDP', start_date, end_date)
     unemployment = pdr.get_data_fred('UNRATE', start_date, end_date)
 
@@ -54,10 +49,10 @@ def fetch_and_preprocess_data():
     data = data.drop(columns=['GDP', 'UNRATE'])
 
     # Add day of the week feature
-    data['DayOfWeek'] = data.index.dayofweek
+    data['DayOfWeek'] = data.index.dayofweek # type: ignore
 
     # Add month of the year feature
-    data['Month'] = data.index.month
+    data['Month'] = data.index.month # type: ignore
 
     # Add is holiday feature
     cal = USFederalHolidayCalendar()
@@ -65,7 +60,7 @@ def fetch_and_preprocess_data():
     data['IsHoliday'] = data.index.isin(holidays).astype(int)
 
     # Filter out non-business days
-    data = data[data.index.dayofweek < 5]
+    data = data[data.index.dayofweek < 5] # type: ignore
 
     # Add technical indicators
     data['SMA'] = data['Close'].rolling(window=14).mean()
@@ -95,7 +90,9 @@ def fetch_and_preprocess_data():
     logging.info('Selecting features')
     features = data[['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA', 'EMA', 'RSI', 'MACD', 'Upper', 'Lower', 'Cumulative_Returns', 'VWAP', 'GDP Change', 'Unemployment Change']]
     num_features = len(features.columns)  # Get the number of features
+
     logging.info('Features: ' + str(features.columns.tolist()))  # Log the order of features
+    print(features.columns)
 
     # Handle outliers
     logging.info('Handling outliers')
@@ -138,13 +135,13 @@ def fetch_and_preprocess_data():
     logging.info('Creating dataset for testing')
     X_test, Y_test = [], []
     for i in range(forecast_steps, len(test_features)):
-        X_test.append(scaled_test_features[i-forecast_steps:i, :])
-        Y_test.append(scaled_test_target[i, 0]) 
+        X_test.append(scaled_test_features[i-forecast_steps:i, :]) # type: ignore
+        Y_test.append(scaled_test_target[i, 0])  # type: ignore
 
     # Convert lists to numpy arrays
     X_train, Y_train = np.array(X_train), np.array(Y_train)
     X_test, Y_test = np.array(X_test), np.array(Y_test)
-    
+
     # Reshape the data to 2D
     X_train_2d = X_train.reshape((X_train.shape[0], -1))
     X_test_2d = X_test.reshape((X_test.shape[0], -1))
@@ -154,5 +151,15 @@ def fetch_and_preprocess_data():
     Y_train_h2o = h2o.H2OFrame(Y_train)
     X_test_h2o = h2o.H2OFrame(X_test_2d)
     Y_test_h2o = h2o.H2OFrame(Y_test)
+
+    # Get the original column names
+    original_column_names = features.columns.tolist()
+
+    # Create new column names for the reshaped data
+    reshaped_column_names = [f"{name}_{i}" for name in original_column_names for i in range(forecast_steps)]
+
+    # Set the column names in the H2O data frames
+    X_train_h2o.columns = reshaped_column_names
+    X_test_h2o.columns = reshaped_column_names
 
     return X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features
