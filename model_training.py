@@ -6,9 +6,6 @@ import pandas as pd
 from h2o.automl import H2OAutoML
 import config
 
-logging.basicConfig(level=logging.INFO)
-
-
 forecast_steps = config.forecast_steps
 automl_settings = config.automl_settings
 
@@ -46,8 +43,8 @@ def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, 
     else:
         logging.error(f'Target column name {y} not found in feature set. Please check the column names.')
 
-    logging.info(f"Target column name: {y}")
-    logging.info(f"List of column names: {x}")
+    logging.debug(f"Target column name: {y}")
+    logging.debug(f"List of column names: {x}")
 
     # Run AutoML
     aml = H2OAutoML(**config.automl_settings)
