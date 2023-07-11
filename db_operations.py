@@ -5,8 +5,8 @@ import psycopg2
 
 import config
 import numpy as np
-
-
+import json
+import time
 # Extract database credentials from config
 db_config = config.database
 host = db_config['host']
@@ -31,9 +31,11 @@ def create_tables(cur):
     logging.info('Creating actual_vs_predicted table if it does not exist')
     cur.execute("""
         CREATE TABLE IF NOT EXISTS actual_vs_predicted (
-            date DATE PRIMARY KEY,
+            execution_id SERIAL,
+            date DATE,
             actual_price FLOAT,
-            predicted_price FLOAT
+            predicted_price FLOAT,
+            PRIMARY KEY (execution_id, date)
         )
     """)
 
@@ -41,7 +43,7 @@ def create_tables(cur):
     logging.info('Creating evaluation_results table if it doesn\'t exist')
     cur.execute("""
         CREATE TABLE IF NOT EXISTS evaluation_results (
-            id SERIAL PRIMARY KEY,
+            execution_id SERIAL PRIMARY KEY,
             train_rmse FLOAT,
             test_rmse FLOAT,
             train_mae FLOAT,
@@ -55,17 +57,20 @@ def create_tables(cur):
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
     # Create fetched_data table if it doesn't exist
     logging.info('Creating fetched_data table if it does not exist')
     cur.execute("""
         CREATE TABLE IF NOT EXISTS fetched_data (
-            date DATE PRIMARY KEY,
+            execution_id SERIAL,
+            date DATE,
             open_price FLOAT,
             high_price FLOAT,
             low_price FLOAT,
             close_price FLOAT,
             adj_close_price FLOAT,
-            volume FLOAT
+            volume FLOAT,
+            PRIMARY KEY (execution_id, date)
         )
     """)
 
@@ -73,14 +78,55 @@ def create_tables(cur):
     logging.info('Creating forecasted_prices table if it doesn\'t exist')
     cur.execute("""
         CREATE TABLE IF NOT EXISTS forecasted_prices (
-            date DATE PRIMARY KEY,
-            forecasted_price FLOAT
+            execution_id SERIAL,
+            date DATE,
+            forecasted_price FLOAT,
+            PRIMARY KEY (execution_id, date)
+        )
+    """)
+
+    # Create execution_settings table if it doesn't exist
+    logging.info('Creating execution_settings table if it doesn\'t exist')
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS execution_settings (
+            execution_id SERIAL PRIMARY KEY,
+            config_settings TEXT,
+            model_parameters TEXT
         )
     """)
 
 
+def insert_execution_settings(cur, config, model):
+    logging.info('Inserting execution settings into the database')
 
-def insert_data(cur, Y_train, train_preds, forecast, target_scaler):
+    # Create a new dictionary with only the necessary settings
+    config_dict = {
+        'forecast_steps': config.forecast_steps,
+        'database': config.database,
+        # Add any other settings you need
+    }
+
+    # Convert config dictionary and model parameters to string
+    config_settings = json.dumps(config_dict)
+    model_parameters = json.dumps(model.params)
+
+    # Generate a new execution_id based on the current timestamp
+    execution_id = int(time.time())
+
+    # SQL query to insert execution settings into the database
+    query = """
+        INSERT INTO execution_settings (execution_id, config_settings, model_parameters) 
+        VALUES (%s, %s, %s)
+    """
+    cur.execute(query, (execution_id, config_settings, model_parameters))
+
+    return execution_id
+
+
+
+
+
+def insert_data(cur, execution_id, Y_train, train_preds, forecast, target_scaler):
     # Insert actual and predicted prices into the database
     logging.info('Inserting actual and predicted prices into the database')
 
@@ -93,15 +139,16 @@ def insert_data(cur, Y_train, train_preds, forecast, target_scaler):
         predicted_price = target_scaler.inverse_transform(train_preds[i].reshape(-1, 1))[0][0]
 
         cur.execute(f"""
-            INSERT INTO actual_vs_predicted (date, actual_price, predicted_price) 
-            VALUES ('{date}', {actual_price}, {predicted_price}) 
-            ON CONFLICT (date) DO UPDATE 
+            INSERT INTO actual_vs_predicted (execution_id, date, actual_price, predicted_price) 
+            VALUES ({execution_id}, '{date}', {actual_price}, {predicted_price}) 
+            ON CONFLICT (execution_id, date) DO UPDATE 
             SET actual_price = {actual_price}, predicted_price = {predicted_price}
         """)
 
 
 
-def insert_forecast(cur, forecast, target_scaler):
+
+def insert_forecast(cur, execution_id, forecast, target_scaler):
     logging.info("Inserting forecast")
     # Convert forecast to list if it's a numpy array
     if isinstance(forecast, np.ndarray):
@@ -112,9 +159,9 @@ def insert_forecast(cur, forecast, target_scaler):
 
     # SQL query to insert or update forecast in the database
     query = """
-        INSERT INTO forecasted_prices (date, forecasted_price) 
-        VALUES (%s, %s) 
-        ON CONFLICT (date) 
+        INSERT INTO forecasted_prices (execution_id, date, forecasted_price) 
+        VALUES (%s, %s, %s) 
+        ON CONFLICT (execution_id, date) 
         DO UPDATE SET forecasted_price = EXCLUDED.forecasted_price
     """
     # Insert or update each forecasted price in the database
@@ -124,10 +171,9 @@ def insert_forecast(cur, forecast, target_scaler):
         # Inverse transform the forecasted price
         forecasted_price = target_scaler.inverse_transform(np.array([[price]]))[0][0]
 
-        cur.execute(query, (date, forecasted_price))
+        cur.execute(query, (execution_id, date, forecasted_price)) # added execution_id here
 
-
-def insert_fetched_data(cur, data):
+def insert_fetched_data(cur, execution_id, data):
     logging.info('Inserting fetched data into the database')
     for i in range(len(data)):
         date = data.index[i].strftime('%Y-%m-%d')  # Get the date as a string
@@ -139,21 +185,21 @@ def insert_fetched_data(cur, data):
         volume = data['Volume'].iloc[i]  # Get the volume
 
         cur.execute(f"""
-            INSERT INTO fetched_data (date, open_price, high_price, low_price, close_price, adj_close_price, volume) 
-            VALUES ('{date}', {open_price}, {high_price}, {low_price}, {close_price}, {adj_close_price}, {volume}) 
-            ON CONFLICT (date) DO UPDATE 
+            INSERT INTO fetched_data (execution_id, date, open_price, high_price, low_price, close_price, adj_close_price, volume) 
+            VALUES ({execution_id}, '{date}', {open_price}, {high_price}, {low_price}, {close_price}, {adj_close_price}, {volume}) 
+            ON CONFLICT (execution_id, date) DO UPDATE 
             SET open_price = {open_price}, high_price = {high_price}, low_price = {low_price}, close_price = {close_price}, adj_close_price = {adj_close_price}, volume = {volume}
         """)
 
 
-def insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
+def insert_evaluation_results(cur, execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
     logging.info("Inserting evaluation results")
     # SQL query to insert evaluation results into the database
     query = """
-        INSERT INTO evaluation_results (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO evaluation_results (execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
-    cur.execute(query, (train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2))
+    cur.execute(query, (execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2))
     logging.debug(f"Inserted evaluation results")
 
 def close_connection(conn):
