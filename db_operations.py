@@ -6,7 +6,7 @@ import psycopg2
 import config
 import numpy as np
 import json
-import time
+
 # Extract database credentials from config
 db_config = config.database
 host = db_config['host']
@@ -94,9 +94,34 @@ def create_tables(cur):
             model_parameters TEXT
         )
     """)
+    
+def get_next_execution_id(cur):
+    # Create fetched_data table if it doesn't exist
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS fetched_data (
+            execution_id SERIAL,
+            date DATE,
+            open_price FLOAT,
+            high_price FLOAT,
+            low_price FLOAT,
+            close_price FLOAT,
+            adj_close_price FLOAT,
+            volume FLOAT,
+            PRIMARY KEY (execution_id, date)
+        )
+    """)
+
+    # Fetch the last execution_id from the fetched_data table
+    cur.execute("SELECT MAX(execution_id) FROM fetched_data")
+    last_execution_id = cur.fetchone()[0]
+
+    # If this is the first execution, start from 1, otherwise increment the last execution_id by 1
+    execution_id = 1 if last_execution_id is None else last_execution_id + 1
+
+    return execution_id
 
 
-def insert_execution_settings(cur, config, model):
+def insert_execution_settings(cur, execution_id, config, model):
     logging.info('Inserting execution settings into the database')
 
     # Create a new dictionary with only the necessary settings
@@ -110,21 +135,12 @@ def insert_execution_settings(cur, config, model):
     config_settings = json.dumps(config_dict)
     model_parameters = json.dumps(model.params)
 
-    # Generate a new execution_id based on the current timestamp
-    execution_id = int(time.time())
-
     # SQL query to insert execution settings into the database
     query = """
         INSERT INTO execution_settings (execution_id, config_settings, model_parameters) 
         VALUES (%s, %s, %s)
     """
     cur.execute(query, (execution_id, config_settings, model_parameters))
-
-    return execution_id
-
-
-
-
 
 def insert_data(cur, execution_id, Y_train, train_preds, forecast, target_scaler):
     # Insert actual and predicted prices into the database
@@ -205,4 +221,4 @@ def insert_evaluation_results(cur, execution_id, train_rmse, test_rmse, train_ma
 def close_connection(conn):
     logging.info("Closing connection")
     # Close the database connection
-    conn.close()
+    conn.lcose()
