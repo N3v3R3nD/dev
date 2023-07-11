@@ -40,29 +40,12 @@ try:
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
 
+    # Get the next execution_id
+    execution_id = db_operations.get_next_execution_id(cur)
+
     # Create tables
     db_operations.create_tables(cur)
-    # Get the current maximum execution_id
-    cur.execute("SELECT MAX(execution_id) FROM execution_settings")
-    max_id = cur.fetchone()[0]
 
-    # If there is no maximum execution_id, this is the first run, so set the execution_id to 1
-    if max_id is None:
-        execution_id = 1
-    # Otherwise, increment the maximum execution_id
-    else:
-        execution_id = max_id + 1
-    # Get the current maximum execution_id
-    cur.execute("SELECT MAX(execution_id) FROM execution_settings")
-    max_id = cur.fetchone()[0]
-
-    # If there is no maximum execution_id, this is the first run, so set the execution_id to 1
-    if max_id is None:
-        execution_id = 1
-    # Otherwise, increment the maximum execution_id
-    else:
-        execution_id = max_id + 1
-    
     # Fetch and preprocess data
     logging.info('Fetching and preprocessing data')
     X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features = data_fetching.fetch_and_preprocess_data()
@@ -73,9 +56,6 @@ try:
     # Commit changes
     conn.commit()
 
-    # Close connection
-    db_operations.close_connection(conn)  # type: ignore
-    
     # Check that the shapes of the input data are as expected
     assert X_train.shape[1] == forecast_steps, 'Unexpected shape of X_train'
     assert X_test.shape[1] == forecast_steps, 'Unexpected shape of X_test'
@@ -83,8 +63,8 @@ try:
     assert Y_test.ndim == 1, 'Unexpected shape of Y_test'
 
     # Call the train_model function and get the results
-    model, (train_preds, test_preds), forecast = train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params=None)
-    
+    model_path, model, (train_preds, test_preds), forecast = train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params=None)
+
     # Log shapes for debugging
     logging.info('Shape of Y_train: %s', np.shape(Y_train))
     logging.info('Shape of train_preds: %s', np.shape(train_preds))
@@ -98,8 +78,8 @@ try:
     conn, cur = db_operations.connect_to_db()
     
     # Insert execution settings
-    # db_operations.insert_execution_settings(cur, execution_id, config, model)
-    execution_id = db_operations.insert_execution_settings(cur, config, model)
+    db_operations.insert_execution_settings(cur, execution_id, config, model)
+
     # Insert data
     db_operations.insert_data(cur, execution_id, Y_train, train_preds, forecast, target_scaler)
 
