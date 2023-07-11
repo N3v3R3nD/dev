@@ -1,4 +1,3 @@
-# data_fetching.py
 import logging
 from datetime import datetime
 
@@ -24,6 +23,12 @@ def fetch_and_preprocess_data():
     logging.info('Data downloaded from Yahoo Finance')
     logging.info('Data shape: %s', data.shape)
     logging.info('First few rows of the data:')
+
+    # Create a shifted version of the 'Open' column as the target
+    data['Target'] = data['Open'].shift(-1)
+
+    # Drop the last row, which does not have a target
+    data = data[:-1]
 
     # Fetch macroeconomic data using FRED
     logging.info('Fetching macroeconomic data using FRED')
@@ -88,9 +93,8 @@ def fetch_and_preprocess_data():
 
     # Select features
     logging.info('Selecting features')
-    features = data[['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA', 'EMA', 'RSI', 'MACD', 'Upper', 'Lower', 'Cumulative_Returns', 'VWAP', 'GDP Change', 'Unemployment Change']]
+    features = data[['High', 'Low', 'Close', 'Adj Close', 'Volume', 'SMA', 'EMA', 'RSI', 'MACD', 'Upper', 'Lower', 'Cumulative_Returns', 'VWAP', 'GDP Change', 'Unemployment Change', 'Target']]    
     num_features = len(features.columns)  # Get the number of features
-
     logging.info('Features: ' + str(features.columns.tolist()))  # Log the order of features
     print(features.columns)
 
@@ -109,18 +113,19 @@ def fetch_and_preprocess_data():
     # Split data into training and test sets
     logging.info('Splitting data into training and test sets')
     split = int(0.8 * len(features))
-    train_features = features[:split]
-    test_features = features[split:]
+    train_features = features.drop('Target', axis=1)[:split]
+    test_features = features.drop('Target', axis=1)[split:]
+    train_target = features[['Target']][:split]
+    test_target = features[['Target']][split:]
 
     # Fit the scaler on the training data and transform both training and test data
     logging.info('Scaling data')
-    scaled_train_features = feature_scaler.fit_transform(train_features)
-    scaled_test_features = feature_scaler.transform(test_features)
+    feature_scaler = StandardScaler().fit(train_features)
+    target_scaler = StandardScaler().fit(train_target)
 
-    # Do the same for the target variable
-    train_target = features[['Open']][:split]
-    test_target = features[['Open']][split:]
-    scaled_train_target = target_scaler.fit_transform(train_target)
+    scaled_train_features = feature_scaler.transform(train_features)
+    scaled_test_features = feature_scaler.transform(test_features)
+    scaled_train_target = target_scaler.transform(train_target)
     scaled_test_target = target_scaler.transform(test_target)
 
     # Create the dataset for training
@@ -152,8 +157,8 @@ def fetch_and_preprocess_data():
     X_test_h2o = h2o.H2OFrame(X_test_2d)
     Y_test_h2o = h2o.H2OFrame(Y_test)
 
-    # Get the original column names
-    original_column_names = features.columns.tolist()
+    # Get the original column names (exclude the target)
+    original_column_names = train_features.columns.tolist()
 
     # Create new column names for the reshaped data
     reshaped_column_names = [f"{name}_{i}" for name in original_column_names for i in range(forecast_steps)]
