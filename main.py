@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 
 import config
 import data_fetching
@@ -41,19 +42,39 @@ try:
 
     # Create tables
     db_operations.create_tables(cur)
-    # Fetch and preprocess data
+    # Get the current maximum execution_id
+    cur.execute("SELECT MAX(execution_id) FROM execution_settings")
+    max_id = cur.fetchone()[0]
+
+    # If there is no maximum execution_id, this is the first run, so set the execution_id to 1
+    if max_id is None:
+        execution_id = 1
+    # Otherwise, increment the maximum execution_id
+    else:
+        execution_id = max_id + 1
+    # Get the current maximum execution_id
+    cur.execute("SELECT MAX(execution_id) FROM execution_settings")
+    max_id = cur.fetchone()[0]
+
+    # If there is no maximum execution_id, this is the first run, so set the execution_id to 1
+    if max_id is None:
+        execution_id = 1
+    # Otherwise, increment the maximum execution_id
+    else:
+        execution_id = max_id + 1
     
+    # Fetch and preprocess data
     logging.info('Fetching and preprocessing data')
     X_train, Y_train, X_test, Y_test, train_features, test_features, data, scaled_train_target, scaled_test_target, forecast_steps, target_scaler, num_features = data_fetching.fetch_and_preprocess_data()
 
     # Insert fetched data into the database
-    db_operations.insert_fetched_data(cur, data)
+    db_operations.insert_fetched_data(cur, execution_id, data)
 
     # Commit changes
     conn.commit()
 
     # Close connection
-    db_operations.close_connection(conn) # type: ignore
+    db_operations.close_connection(conn)  # type: ignore
     
     # Check that the shapes of the input data are as expected
     assert X_train.shape[1] == forecast_steps, 'Unexpected shape of X_train'
@@ -63,32 +84,36 @@ try:
 
     # Call the train_model function and get the results
     model, (train_preds, test_preds), forecast = train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params=None)
+    
     # Log shapes for debugging
     logging.info('Shape of Y_train: %s', np.shape(Y_train))
     logging.info('Shape of train_preds: %s', np.shape(train_preds))
     logging.info('Shape of test_preds: %s', np.shape(test_preds))
     logging.info('Shape of forecast: %s', np.shape(forecast))
+    
     # Evaluate model
     train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2 = model_evaluation.evaluate_model(model, Y_train, Y_test, train_preds, test_preds)
-    
 
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
     
+    # Insert execution settings
+    # db_operations.insert_execution_settings(cur, execution_id, config, model)
+    execution_id = db_operations.insert_execution_settings(cur, config, model)
     # Insert data
-    db_operations.insert_data(cur, Y_train, train_preds, test_preds, forecast, target_scaler)
+    db_operations.insert_data(cur, execution_id, Y_train, train_preds, forecast, target_scaler)
 
     # Insert forecast into the database
-    db_operations.insert_forecast(cur, forecast, target_scaler)
+    db_operations.insert_forecast(cur, execution_id, forecast, target_scaler)
     
     # Insert evaluation results
-    db_operations.insert_evaluation_results(cur, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
+    db_operations.insert_evaluation_results(cur, execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
 
     # Commit changes
     conn.commit()
 
     # Close connection
-    db_operations.close_connection(conn) # type: ignore
+    db_operations.close_connection(conn)  # type: ignore
 
 except Exception as e:
     logging.error('An error occurred: %s', e)
