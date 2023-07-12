@@ -58,6 +58,8 @@ def train_model(data, forecast_length):
 
     # Get the evaluation results
     evaluation = model.results()
+    # Convert the DataFrame to a list of dictionaries
+    evaluation = evaluation.to_dict('records')
 
     # Log the type and value of 'evaluation'
     logging.info(f"Type of 'evaluation': {type(evaluation)}")
