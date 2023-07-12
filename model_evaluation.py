@@ -22,6 +22,7 @@ def calculate_r2(actual, predicted):
 
 def evaluate_model(model, actual_train, actual_test, predicted_train, predicted_test):
     try:
+        # Calculate evaluation metrics
         train_rmse = calculate_rmse(actual_train, predicted_train)
         test_rmse = calculate_rmse(actual_test, predicted_test)
         train_mae = calculate_mae(actual_train, predicted_train)
@@ -32,7 +33,8 @@ def evaluate_model(model, actual_train, actual_test, predicted_train, predicted_
         test_rse = calculate_rse(actual_test, predicted_test)
         train_r2 = calculate_r2(actual_train, predicted_train)
         test_r2 = calculate_r2(actual_test, predicted_test)
-        
+
+        # Log the evaluation metrics
         logging.info(f'Train RMSE: {train_rmse}')
         logging.info(f'Test RMSE: {test_rmse}')
         logging.info(f'Train MAE: {train_mae}')
@@ -45,5 +47,7 @@ def evaluate_model(model, actual_train, actual_test, predicted_train, predicted_
         logging.info(f'Test R2: {test_r2}')
 
         return train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2
+    except H2OResponseError as e:
+        logging.error(f'Error: {e}')
     except H2OResponseError as e:
         logging.error(f'Error: {e}')
