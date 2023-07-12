@@ -53,25 +53,23 @@ try:
     features = data
 
     # Call the train_model function and get the results
-    model, prediction, X_train, X_test, Y_train, Y_test = train_model(features, config.autots_params['forecast_length'])
+    model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd = train_model(data, config.autots_params['forecast_length'])
+    
     # Log shapes for debugging
     logging.info('Shape of data: %s', np.shape(data))
     logging.info('Shape of prediction: %s', np.shape(prediction))
 
-    # Evaluate model
-    # evaluation_results = model_evaluation.evaluate_model(model, prediction)
-
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
-    
+
+    # Insert the evaluation results into the database
+    insert_evaluation_results(cur, execution_id, evaluation)
+
     # Insert execution settings
     # db_operations.insert_execution_settings(cur, execution_id, config, model)
 
     # Insert data
     db_operations.insert_data(cur, execution_id, data, prediction)
-
-    # Insert evaluation results
-    # db_operations.insert_evaluation_results(cur, execution_id, *evaluation_results)
 
     # Commit changes
     conn.commit()
