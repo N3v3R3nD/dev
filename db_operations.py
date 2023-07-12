@@ -228,6 +228,7 @@ def insert_evaluation_results(cur, execution_id, evaluation):
 
 
 
+
 def insert_forecast(cur, execution_id, forecast, target_scaler):
     try:
         logging.info("Inserting forecast")
