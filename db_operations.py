@@ -211,14 +211,19 @@ def insert_evaluation_results(cur, execution_id, evaluation):
         """
 
         # Insert each evaluation result into the database
-        for model_name, model_info in evaluation.items():
-            for model_version, model_metrics in model_info.items():
-                for model_metric, model_value in model_metrics.items():
-                    cur.execute(query, (execution_id, model_name, model_version, model_metric, model_value))
-        logging.debug(f"Inserted evaluation results")
+        for index, row in evaluation.iterrows():
+            model_name = row['Model']
+            model_version = row['ModelVersion']
+            for column in evaluation.columns[2:]:
+                model_metric = column
+                model_value = row[column]
+                cur.execute(query, (execution_id, model_name, model_version, model_metric, model_value))
+        logging.debug("Inserted evaluation results")
     except Exception as e:
         logging.error(f"Error inserting evaluation results: {e}")
         raise
+
+
 
 def insert_forecast(cur, execution_id, forecast, target_scaler):
     try:
