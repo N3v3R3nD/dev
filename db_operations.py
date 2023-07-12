@@ -207,17 +207,20 @@ def insert_evaluation_results(cur, execution_id, evaluation):
         # Get the list of columns in the evaluation dataframe
         columns = evaluation.columns.tolist()
 
+        # Create a list of column names (excluding the first two columns: ID and Model)
+        column_names = columns[2:]
+
         # SQL query to insert evaluation results into the database
         query = f"""
-            INSERT INTO evaluation_results (execution_id, model_name, {', '.join(columns[2:])})
+            INSERT INTO evaluation_results (execution_id, model_name, {', '.join(column_names)})
             VALUES %s
         """
 
         # Create a list of values for all rows and columns in the evaluation dataframe
-        values = [(execution_id, row['Model'], *row[2:]) for _, row in evaluation.iterrows()]
+        values = [(execution_id, row['Model'], *row[column_names]) for _, row in evaluation.iterrows()]
 
         # Execute the SQL query to insert the values into the database
-        cur.execute(query, values)
+        cur.execute(query, [tuple(row) for row in values])
 
         logging.debug("Inserted evaluation results")
     except Exception as e:
@@ -276,7 +279,7 @@ def insert_fetched_data(cur, execution_id, data):
                 ON CONFLICT (execution_id, date) DO UPDATE 
                 SET open_price = %s, high_price = %s, low_price = %s, close_price = %s, adj_close_price = %s, volume = %s
             """, (execution_id, date, open_price, high_price, low_price, close_price, adj_close_price, volume, 
-                  open_price, high_price, low_price, close_price, adj_close_price, volume))
+                open_price, high_price, low_price, close_price, adj_close_price, volume))
     except Exception as e:
         logging.error(f"Error inserting fetched data: {e}")
         raise
