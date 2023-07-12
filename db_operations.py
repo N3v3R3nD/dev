@@ -1,6 +1,8 @@
+# db_operation.py
 import logging
 from datetime import datetime, timedelta
 
+import pandas as pd
 import psycopg2
 
 import config
@@ -13,6 +15,7 @@ host = db_config['host']
 database = db_config['database']
 user = db_config['user']
 password = db_config['password']
+
 
 def connect_to_db():
     try:
@@ -158,28 +161,54 @@ def insert_execution_settings(cur, execution_id, config, model):
         logging.error(f"Error inserting execution settings: {e}")
         raise
 
-def insert_data(cur, execution_id, Y_train, train_preds, forecast, target_scaler):
+def insert_data(cur, execution_id, data, forecast):
     try:
+        logging.info('Inserting data into the database')
+
         # Insert actual and predicted prices into the database
-        logging.info('Inserting actual and predicted prices into the database')
+        for i in range(len(data)-1):  # Exclude the last record as it does not have a prediction
+            date = data.index[i].strftime('%Y-%m-%d')
+            actual_price = data.iloc[i]['Close']
+            predicted_price = data.iloc[i]['Predicted'] if 'Predicted' in data.columns else None
 
-        if Y_train.shape[0] != train_preds.shape[0]:
-            raise ValueError("Length of Y_train and train_preds don't match")
+            if predicted_price is not None:
+                cur.execute(f'''
+                    INSERT INTO actual_vs_predicted (execution_id, date, actual_price, predicted_price) 
+                    VALUES ({execution_id}, '{date}', {actual_price}, {predicted_price}) 
+                    ON CONFLICT (execution_id, date) DO UPDATE 
+                    SET actual_price = {actual_price}, predicted_price = {predicted_price}
+                ''')
+            else:
+                cur.execute(f'''
+                    INSERT INTO actual_vs_predicted (execution_id, date, actual_price) 
+                    VALUES ({execution_id}, '{date}', {actual_price}) 
+                    ON CONFLICT (execution_id, date) DO UPDATE 
+                    SET actual_price = {actual_price}
+                ''')
 
-        for i, actual_price in enumerate(Y_train):
-            date = (datetime.today() - timedelta(days=len(Y_train) - i - 1)).strftime('%Y-%m-%d')  # Calculate the correct date
-            actual_price = target_scaler.inverse_transform(actual_price.reshape(-1, 1))[0][0]
-            predicted_price = target_scaler.inverse_transform(train_preds[i].reshape(-1, 1))[0][0]
+        # Determine the length of the loop
+        loop_length = len(forecast.forecast)
 
-            cur.execute(f"""
-                INSERT INTO actual_vs_predicted (execution_id, date, actual_price, predicted_price) 
-                VALUES ({execution_id}, '{date}', {actual_price}, {predicted_price}) 
+        # Insert forecasted prices into the database
+        logging.info('Inserting forecasted prices into the database')
+
+        for i in range(loop_length):  
+            date = (data.index[-1] + pd.DateOffset(days=i+1)).strftime('%Y-%m-%d')  # The date is the last date in data plus the forecast horizon
+            forecasted_price = forecast.forecast.iloc[i][0]  # Assuming forecast is a DataFrame with forecasted prices
+
+            cur.execute(f'''
+                INSERT INTO forecasted_prices (execution_id, date, forecasted_price) 
+                VALUES ({execution_id}, '{date}', {forecasted_price}) 
                 ON CONFLICT (execution_id, date) DO UPDATE 
-                SET actual_price = {actual_price}, predicted_price = {predicted_price}
-            """)
+                SET forecasted_price = {forecasted_price}
+            ''')
     except Exception as e:
-        logging.error(f"Error inserting data: {e}")
+        logging.error(f'Error inserting data: {e}')
         raise
+
+
+
+
 
 def insert_forecast(cur, execution_id, forecast, target_scaler):
     try:
@@ -220,17 +249,19 @@ def insert_fetched_data(cur, execution_id, data):
             low_price = data['Low'].iloc[i]  # Get the low price
             close_price = data['Close'].iloc[i]  # Get the close price
             adj_close_price = data['Adj Close'].iloc[i]  # Get the adjusted close price
-            volume = data['Volume'].iloc[i]  # Get the volume
+            volume = int(data['Volume'].iloc[i])  # Get the volume and convert it to a native Python int
 
-            cur.execute(f"""
+            cur.execute("""
                 INSERT INTO fetched_data (execution_id, date, open_price, high_price, low_price, close_price, adj_close_price, volume) 
-                VALUES ({execution_id}, '{date}', {open_price}, {high_price}, {low_price}, {close_price}, {adj_close_price}, {volume}) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) 
                 ON CONFLICT (execution_id, date) DO UPDATE 
-                SET open_price = {open_price}, high_price = {high_price}, low_price = {low_price}, close_price = {close_price}, adj_close_price = {adj_close_price}, volume = {volume}
-            """)
+                SET open_price = %s, high_price = %s, low_price = %s, close_price = %s, adj_close_price = %s, volume = %s
+            """, (execution_id, date, open_price, high_price, low_price, close_price, adj_close_price, volume, 
+                  open_price, high_price, low_price, close_price, adj_close_price, volume))
     except Exception as e:
         logging.error(f"Error inserting fetched data: {e}")
         raise
+
 
 def insert_evaluation_results(cur, execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
     try:
