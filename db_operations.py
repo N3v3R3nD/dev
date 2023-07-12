@@ -46,26 +46,18 @@ def create_tables(cur):
                 PRIMARY KEY (execution_id, date)
             )
         """)
-
         # Create evaluation_results table if it doesn't exist
         logging.info('Creating evaluation_results table if it doesn\'t exist')
         cur.execute("""
             CREATE TABLE IF NOT EXISTS evaluation_results (
                 execution_id SERIAL PRIMARY KEY,
-                train_rmse FLOAT,
-                test_rmse FLOAT,
-                train_mae FLOAT,
-                test_mae FLOAT,
-                train_rae FLOAT,
-                test_rae FLOAT,
-                train_rse FLOAT,
-                test_rse FLOAT,
-                train_r2 FLOAT,
-                test_r2 FLOAT,
+                model_name TEXT,
+                model_version TEXT,
+                model_metric TEXT,
+                model_value FLOAT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-
         # Create fetched_data table if it doesn't exist
         logging.info('Creating fetched_data table if it does not exist')
         cur.execute("""
@@ -102,6 +94,7 @@ def create_tables(cur):
                 model_parameters TEXT
             )
         """)
+
     except Exception as e:
         logging.error(f"Error creating tables: {e}")
         raise
@@ -163,7 +156,7 @@ def insert_execution_settings(cur, execution_id, config, model):
 
 def insert_data(cur, execution_id, data, forecast):
     try:
-        logging.info('Inserting data into the database')
+        logging.info('Inserting actual and predicted prices into the database')
 
         # Insert actual and predicted prices into the database
         for i in range(len(data)-1):  # Exclude the last record as it does not have a prediction
@@ -207,8 +200,25 @@ def insert_data(cur, execution_id, data, forecast):
         raise
 
 
+def insert_evaluation_results(cur, execution_id, evaluation):
+    try:
+        logging.info("Inserting evaluation results")
 
+        # SQL query to insert evaluation results into the database
+        query = """
+            INSERT INTO evaluation_results (execution_id, model_name, model_version, model_metric, model_value)
+            VALUES (%s, %s, %s, %s, %s)
+        """
 
+        # Insert each evaluation result into the database
+        for model_name, model_info in evaluation.items():
+            for model_version, model_metrics in model_info.items():
+                for model_metric, model_value in model_metrics.items():
+                    cur.execute(query, (execution_id, model_name, model_version, model_metric, model_value))
+        logging.debug(f"Inserted evaluation results")
+    except Exception as e:
+        logging.error(f"Error inserting evaluation results: {e}")
+        raise
 
 def insert_forecast(cur, execution_id, forecast, target_scaler):
     try:
@@ -260,21 +270,6 @@ def insert_fetched_data(cur, execution_id, data):
                   open_price, high_price, low_price, close_price, adj_close_price, volume))
     except Exception as e:
         logging.error(f"Error inserting fetched data: {e}")
-        raise
-
-
-def insert_evaluation_results(cur, execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2):
-    try:
-        logging.info("Inserting evaluation results")
-        # SQL query to insert evaluation results into the database
-        query = """
-            INSERT INTO evaluation_results (execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cur.execute(query, (execution_id, train_rmse, test_rmse, train_mae, test_mae, train_rae, test_rae, train_rse, test_rse, train_r2, test_r2))
-        logging.debug(f"Inserted evaluation results")
-    except Exception as e:
-        logging.error(f"Error inserting evaluation results: {e}")
         raise
 
 def close_connection(conn):
