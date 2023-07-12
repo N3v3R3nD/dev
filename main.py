@@ -55,7 +55,8 @@ try:
 
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
-
+    logging.info(f"Evaluation results:\n{evaluation}")
+    
     # Insert the evaluation results into the database
     db_operations.insert_evaluation_results(cur, execution_id, evaluation)
 

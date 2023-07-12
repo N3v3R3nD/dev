@@ -204,24 +204,27 @@ def insert_evaluation_results(cur, execution_id, evaluation):
     try:
         logging.info("Inserting evaluation results")
 
+        # Get the list of columns in the evaluation dataframe
+        columns = evaluation.columns.tolist()
+
         # SQL query to insert evaluation results into the database
-        query = """
-            INSERT INTO evaluation_results (execution_id, model_name, model_version, model_metric, model_value)
-            VALUES (%s, %s, %s, %s, %s)
+        query = f"""
+            INSERT INTO evaluation_results (execution_id, model_name, {', '.join(columns[2:])})
+            VALUES %s
         """
 
-        # Insert each evaluation result into the database
-        for index, row in evaluation.iterrows():
-            model_name = row['Model']
-            model_version = row['ModelVersion']
-            for column in evaluation.columns[2:]:
-                model_metric = column
-                model_value = row[column]
-                cur.execute(query, (execution_id, model_name, model_version, model_metric, model_value))
+        # Create a list of values for all rows and columns in the evaluation dataframe
+        values = [(execution_id, row['Model'], *row[2:]) for _, row in evaluation.iterrows()]
+
+        # Execute the SQL query to insert the values into the database
+        cur.execute(query, values)
+
         logging.debug("Inserted evaluation results")
     except Exception as e:
         logging.error(f"Error inserting evaluation results: {e}")
         raise
+
+
 
 
 

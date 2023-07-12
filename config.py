@@ -1,40 +1,47 @@
-# config.py
 from datetime import datetime
-# Number of previous time steps to use as input features
-forecast_steps = 21
 
-target_column_name = 'Open'
+# The start date for fetching the historical data
+start_date = '2020-01-01'
 
-# Ticker symbol for the stock to predict
-yfinance_symbol = "SPY"
+# The end date for fetching the historical data
+end_date = datetime.today().strftime('%Y-%m-%d')
 
-# Number of epochs with no improvement after which training will be stopped
-early_stopping_patience = 5
+# The column name in the fetched data that will be predicted
+target_column_name = 'open_price'
 
+# Ticker symbol for the stock to predict. This is used to fetch data from Yahoo Finance.
+yfinance_symbol = "ES=F"
+
+# Parameters for the AutoTS model
+autots_params = {
+    # Number of periods into the future to forecast
+    'forecast_length': 21,
+
+    # Frequency of the data. Options: 'B' (business day frequency), 'D' (daily frequency), 'W' (weekly frequency), 'M' (monthly frequency)
+    'frequency': 'B',
+
+    # Method to ensemble models. Options: 'simple' (equally-weighted model average)
+    'ensemble': 'simple',
+
+    # Maximum number of generations to run. Each generation is a complete run through all selected models.
+    'max_generations': 1,
+
+    # This parameter allows the model to automatically drop old data that exceeds this number of periods.
+    # This can be useful for very large datasets or for datasets with missing periods.
+    'drop_data_older_than_periods': 200,
+
+    # The number of jobs to run in parallel. Options: -1 (using all processors), or any positive integer
+    'n_jobs': -1,
+}
 
 # Details for connecting to the database
 database = {
-    # Host name
-    "host": "localhost",
-    # Database name
-    "database": "stock",
-    # Username
-    "user": "postgres",
-    # Password
-    "password": "test123"
+    # Host name of the database
+    "host": "snuffleupagus.db.elephantsql.com",
+    # Name of the database
+    "database": "rzpjtxcf",
+    # Username for the database
+    "user": "rzpjtxcf",
+    # Password for the database
+    "password": "lbFXUWGzaOw_aju7fmq0mNkt39T3fAKf"
 }
-
-# AutoML settings
-automl_settings = {
-#   'max_runtime_secs': 3600,              # Maximum time for AutoML to run (in seconds)
-    'max_models': 20,                    # Maximum number of models to build
-    'seed': 1,                             # Random seed for reproducibility
-    'balance_classes': False,
-    'include_algos': ['DRF', 'GBM', 'XGBoost', 'DeepLearning'],  # Algorithms to include in AutoML
-    'keep_cross_validation_models': True,   # Whether to keep cross-validated models in the AutoML leaderboard
-    'keep_cross_validation_predictions': True,  # Whether to keep cross-validated predictions in the AutoML leaderboard
-    'verbosity': 'info'                     # Set the verbosity level of the AutoML process
-}
-start_date = '2019-01-01'
-end_date = datetime.today().strftime('%Y-%m-%d')
-# Other configuration options...
