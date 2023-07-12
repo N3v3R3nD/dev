@@ -55,17 +55,14 @@ try:
 
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
-    logging.info(f"Evaluation results:\n{evaluation}")
     
-    # Insert the evaluation results into the database
-    db_operations.insert_evaluation_results(cur, execution_id, evaluation)
-
-    # Insert execution settings
-    # db_operations.insert_execution_settings(cur, execution_id, config, model)
-
     # Insert data
     db_operations.insert_data(cur, execution_id, data, prediction)
-
+    
+    # Insert the evaluation results into the database
+    logging.info(f"Evaluation results:\n{evaluation}")
+    db_operations.insert_evaluation_results(cur, execution_id, evaluation)
+    
     # Commit changes
     conn.commit()
 
@@ -79,6 +76,6 @@ except Exception as e:
     raise
 finally:
     # Close connection
-    db_operations.close_connection(conn)  # type: ignore
+    db_operations.close_connection(conn)
 
 logging.info('Script completed')
