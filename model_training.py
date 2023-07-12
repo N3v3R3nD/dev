@@ -55,13 +55,19 @@ def train_model(data, forecast_length):
     model = AutoTS(**autots_params)
     model = model.fit(X_train_pd, date_col='date', value_col='Close', id_col=None)
 
+    # Get the evaluation results
+    evaluation = model.results()
+
+    # Print the evaluation results
+    print(evaluation)
+
     # Make predictions
     logging.info("Starting prediction")
     prediction = model.predict(forecast_length)
     logging.info("Prediction completed")
 
     # Get the predicted values
-    prediction_values = prediction.prediction
+    prediction_values = prediction.forecast
 
     # Create a DataFrame for the predicted values
     prediction_df = pd.DataFrame(prediction_values, columns=['Predicted'])
@@ -70,4 +76,4 @@ def train_model(data, forecast_length):
     X_train_pd = pd.concat([X_train_pd, prediction_df], axis=1)
     X_test_pd = pd.concat([X_test_pd, prediction_df], axis=1)
 
-    return model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd
+    return model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation
