@@ -59,6 +59,10 @@ def train_model(data, forecast_length):
     # Get the evaluation results
     evaluation = model.results()
 
+    # Log the type and value of 'evaluation'
+    logging.info(f"Type of 'evaluation': {type(evaluation)}")
+    logging.info(f"Value of 'evaluation': {evaluation}")
+
     # Make predictions
     logging.info("Starting prediction")
     prediction = model.predict(forecast_length)

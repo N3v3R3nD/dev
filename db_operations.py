@@ -46,15 +46,65 @@ def create_tables(cur):
                 PRIMARY KEY (execution_id, date)
             )
         """)
-        # Create evaluation_results table if it doesn't exist
+          # Create evaluation_results table if it doesn't exist
         logging.info('Creating evaluation_results table if it doesn\'t exist')
         cur.execute("""
             CREATE TABLE IF NOT EXISTS evaluation_results (
                 execution_id SERIAL PRIMARY KEY,
-                model_name TEXT,
-                model_version TEXT,
-                model_metric TEXT,
-                model_value FLOAT,
+                ID TEXT,
+                Model TEXT,
+                ModelParameters TEXT,
+                TransformationParameters TEXT,
+                TransformationRuntime FLOAT,
+                FitRuntime FLOAT,
+                PredictRuntime FLOAT,
+                TotalRuntime FLOAT,
+                Ensemble TEXT,
+                Exceptions TEXT,
+                Runs INTEGER,
+                Generation TEXT,
+                ValidationRound INTEGER,
+                ValidationStartDate TEXT,
+                smape FLOAT,
+                mae FLOAT,
+                rmse FLOAT,
+                made FLOAT,
+                mage FLOAT,
+                underestimate FLOAT,
+                mle FLOAT,
+                overestimate FLOAT,
+                imle FLOAT,
+                spl FLOAT,
+                containment FLOAT,
+                contour FLOAT,
+                maxe FLOAT,
+                oda FLOAT,
+                dwae FLOAT,
+                mqae FLOAT,
+                ewmae FLOAT,
+                uwmse FLOAT,
+                smoothness FLOAT,
+                smape_weighted FLOAT,
+                mae_weighted FLOAT,
+                rmse_weighted FLOAT,
+                made_weighted FLOAT,
+                mage_weighted FLOAT,
+                underestimate_weighted FLOAT,
+                mle_weighted FLOAT,
+                overestimate_weighted FLOAT,
+                imle_weighted FLOAT,
+                spl_weighted FLOAT,
+                containment_weighted FLOAT,
+                contour_weighted FLOAT,
+                maxe_weighted FLOAT,
+                oda_weighted FLOAT,
+                dwae_weighted FLOAT,
+                mqae_weighted FLOAT,
+                ewmae_weighted FLOAT,
+                uwmse_weighted FLOAT,
+                smoothness_weighted FLOAT,
+                TotalRuntimeSeconds FLOAT,
+                Score FLOAT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -98,6 +148,7 @@ def create_tables(cur):
     except Exception as e:
         logging.error(f"Error creating tables: {e}")
         raise
+
 
 def get_next_execution_id(cur):
     try:
@@ -202,21 +253,189 @@ def insert_data(cur, execution_id, data, forecast):
 
 def insert_evaluation_results(cur, execution_id, evaluation):
     try:
-        logging.info("Inserting evaluation results")
+        query = """
+            INSERT INTO evaluation_results (
+                execution_id,
+                ID,
+                Model,
+                ModelParameters,
+                TransformationParameters,
+                TransformationRuntime,
+                FitRuntime,
+                PredictRuntime,
+                TotalRuntime,
+                Ensemble,
+                Exceptions,
+                Runs,
+                Generation,
+                ValidationRound,
+                ValidationStartDate,
+                smape,
+                mae,
+                rmse,
+                made,
+                mage,
+                underestimate,
+                mle,
+                overestimate,
+                imle,
+                spl,
+                containment,
+                contour,
+                maxe,
+                oda,
+                dwae,
+                mqae,
+                ewmae,
+                uwmse,
+                smoothness,
+                smape_weighted,
+                mae_weighted,
+                rmse_weighted,
+                made_weighted,
+                mage_weighted,
+                underestimate_weighted,
+                mle_weighted,
+                overestimate_weighted,
+                imle_weighted,
+                spl_weighted,
+                containment_weighted,
+                contour_weighted,
+                maxe_weighted,
+                oda_weighted,
+                dwae_weighted,
+                mqae_weighted,
+                ewmae_weighted,
+                uwmse_weighted,
+                smoothness_weighted,
+                TotalRuntimeSeconds,
+                Score
+            )
+            VALUES (
+                %(execution_id)s,
+                %(ID)s,
+                %(Model)s,
+                %(ModelParameters)s,
+                %(TransformationParameters)s,
+                %(TransformationRuntime)s,
+                %(FitRuntime)s,
+                %(PredictRuntime)s,
+                %(TotalRuntime)s,
+                %(Ensemble)s,
+                %(Exceptions)s,
+                %(Runs)s,
+                %(Generation)s,
+                %(ValidationRound)s,
+                %(ValidationStartDate)s,
+                %(smape)s,
+                %(mae)s,
+                %(rmse)s,
+                %(made)s,
+                %(mage)s,
+                %(underestimate)s,
+                %(mle)s,
+                %(overestimate)s,
+                %(imle)s,
+                %(spl)s,
+                %(containment)s,
+                %(contour)s,
+                %(maxe)s,
+                %(oda)s,
+                %(dwae)s,
+                %(mqae)s,
+                %(ewmae)s,
+                %(uwmse)s,
+                %(smoothness)s,
+                %(smape_weighted)s,
+                %(mae_weighted)s,
+                %(rmse_weighted)s,
+                %(made_weighted)s,
+                %(mage_weighted)s,
+                %(underestimate_weighted)s,
+                %(mle_weighted)s,
+                %(overestimate_weighted)s,
+                %(imle_weighted)s,
+                %(spl_weighted)s,
+                %(containment_weighted)s,
+                %(contour_weighted)s,
+                %(maxe_weighted)s,
+                %(oda_weighted)s,
+                %(dwae_weighted)s,
+                %(mqae_weighted)s,
+                %(ewmae_weighted)s,
+                %(uwmse_weighted)s,
+                %(smoothness_weighted)s,
+                %(TotalRuntimeSeconds)s,
+                %(Score)s
+            )
+        """
 
-        # Print the column names
-        logging.info("Evaluation columns:")
-        for column in evaluation.columns:
-            logging.info(column)
+        values = []
+        for row in evaluation:
+            row_values = {
+                'execution_id': execution_id,
+                'ID': row['ID'],
+                'Model': row['Model'],
+                'ModelParameters': row['ModelParameters'],
+                'TransformationParameters': row['TransformationParameters'],
+                'TransformationRuntime': row['TransformationRuntime'],
+                'FitRuntime': row['FitRuntime'],
+                'PredictRuntime': row['PredictRuntime'],
+                'TotalRuntime': row['TotalRuntime'],
+                'Ensemble': row['Ensemble'],
+                'Exceptions': row['Exceptions'],
+                'Runs': row['Runs'],
+                'Generation': row['Generation'],
+                'ValidationRound': row['ValidationRound'],
+                'ValidationStartDate': row['ValidationStartDate'],
+                'smape': row['smape'],
+                'mae': row['mae'],
+                'rmse': row['rmse'],
+                'made': row['made'],
+                'mage': row['mage'],
+                'underestimate': row['underestimate'],
+                'mle': row['mle'],
+                'overestimate': row['overestimate'],
+                'imle': row['imle'],
+                'spl': row['spl'],
+                'containment': row['containment'],
+                'contour': row['contour'],
+                'maxe': row['maxe'],
+                'oda': row['oda'],
+                'dwae': row['dwae'],
+                'mqae': row['mqae'],
+                'ewmae': row['ewmae'],
+                'uwmse': row['uwmse'],
+                'smoothness': row['smoothness'],
+                'smape_weighted': row['smape_weighted'],
+                'mae_weighted': row['mae_weighted'],
+                'rmse_weighted': row['rmse_weighted'],
+                'made_weighted': row['made_weighted'],
+                'mage_weighted': row['mage_weighted'],
+                'underestimate_weighted': row['underestimate_weighted'],
+                'mle_weighted': row['mle_weighted'],
+                'overestimate_weighted': row['overestimate_weighted'],
+                'imle_weighted': row['imle_weighted'],
+                'spl_weighted': row['spl_weighted'],
+                'containment_weighted': row['containment_weighted'],
+                'contour_weighted': row['contour_weighted'],
+                'maxe_weighted': row['maxe_weighted'],
+                'oda_weighted': row['oda_weighted'],
+                'dwae_weighted': row['dwae_weighted'],
+                'mqae_weighted': row['mqae_weighted'],
+                'ewmae_weighted': row['ewmae_weighted'],
+                'uwmse_weighted': row['uwmse_weighted'],
+                'smoothness_weighted': row['smoothness_weighted'],
+                'TotalRuntimeSeconds': row['TotalRuntimeSeconds'],
+                'Score': row['Score']
+            }
+            values.append(row_values)
 
-        # Continue with your logic to insert the evaluation results into the database
+        cur.executemany(query, values)
 
-        logging.debug("Inserted evaluation results")
     except Exception as e:
         logging.error(f"Error inserting evaluation results: {e}")
         raise
-
-
 
 
 def insert_forecast(cur, execution_id, forecast, target_scaler):
