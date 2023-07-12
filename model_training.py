@@ -1,106 +1,73 @@
-# model_training.py
-import logging 
-import h2o
+import logging
 import numpy as np
 import pandas as pd
-from h2o.automl import H2OAutoML
-import config
-import os
+from autots import AutoTS
+from config import autots_params
 
-forecast_steps = config.forecast_steps
-automl_settings = config.automl_settings
+logging.basicConfig(level=logging.DEBUG)
+from config import autots_params
 
-def train_model(X_train, Y_train, X_test, Y_test, forecast_steps, num_features, model_params):
-    logging.info("Starting model training")
-    
-    # Check if the model exists and load it
-    model_filename = "MyModel"
-    model_file_path = os.path.join(".", model_filename)
-    if os.path.exists(model_file_path):
-        model = h2o.load_model(model_file_path)
-    else:
-        
-        # Reshape data if it's a 3D numpy array
-        if isinstance(X_train, np.ndarray) and len(X_train.shape) == 3:
-            X_train = X_train.reshape(X_train.shape[0], -1)
-        if isinstance(X_test, np.ndarray) and len(X_test.shape) == 3:
-            X_test = X_test.reshape(X_test.shape[0], -1)
 
-        # Convert data to H2O data frames
-        logging.info(f"Convert data to H2O data frames")
-        X_train_h2o = h2o.H2OFrame(X_train if isinstance(X_train, pd.DataFrame) else X_train.tolist())
-        Y_train_h2o = h2o.H2OFrame(Y_train if isinstance(Y_train, pd.DataFrame) else Y_train.tolist())
-        X_test_h2o = h2o.H2OFrame(X_test if isinstance(X_test, pd.DataFrame) else X_test.tolist())
-        Y_test_h2o = h2o.H2OFrame(Y_test if isinstance(Y_test, pd.DataFrame) else Y_test.tolist())
+def train_model(data, forecast_length):
+    logging.info('Splitting data into training and test sets')
+    split = int(0.8 * len(data))
+    train_data = data[:split]
+    test_data = data[split:]
 
-        # Set the column names to match the original data frames
-        X_train_h2o.columns = X_train.columns.tolist() if isinstance(X_train, pd.DataFrame) else [f'C{i+1}' for i in range(X_train.shape[1])]
-        Y_train_h2o.columns = [config.target_column_name]
-        X_test_h2o.columns = X_test.columns.tolist() if isinstance(X_test, pd.DataFrame) else [f'C{i+1}' for i in range(X_test.shape[1])]
-        Y_test_h2o.columns = [config.target_column_name]
-        # Combine features and target into a single data frame
-        train_data = X_train_h2o.cbind(Y_train_h2o)
-        test_data = X_test_h2o.cbind(Y_test_h2o)
+    # Create the dataset for training
+    logging.info('Creating dataset for training')
+    X_train, Y_train = [], []
+    for i in range(forecast_length, len(train_data)):
+        X_train.append(train_data.iloc[i - forecast_length:i, 1:-1].values.flatten())
+        Y_train.append(train_data.iloc[i, -1])
 
-        y = config.target_column_name  # Define the target column name
-        x = train_data.columns  # Define the feature column names
+    # Create the dataset for testing
+    logging.info('Creating dataset for testing')
+    X_test, Y_test = [], []
+    for i in range(forecast_length, len(test_data)):
+        X_test.append(test_data.iloc[i - forecast_length:i, 1:-1].values.flatten())
+        Y_test.append(test_data.iloc[i, -1])
 
-        # Check if the target column name exists in the feature set
-        if y in x:
-            x.remove(y)
-        else:
-            logging.error(f'Target column name {y} not found in feature set. Please check the column names.')
+    # Convert lists to pandas dataframes
+    X_train_pd = pd.DataFrame(X_train)
+    Y_train_pd = pd.DataFrame(Y_train, columns=['Close'])
+    X_test_pd = pd.DataFrame(X_test)
+    Y_test_pd = pd.DataFrame(Y_test, columns=['Close'])
 
-        logging.debug(f"Target column name: {y}")
-        logging.debug(f"List of column names: {x}")
+    # Train model
+    train_data.reset_index(level=0, inplace=True)
+    train_data.columns = ['date'] + list(train_data.columns)[1:]
+    if train_data['date'].dtype != 'datetime64[ns]':
+        train_data['date'] = pd.to_datetime(train_data['date'])
 
-        # Run AutoML
-        aml = H2OAutoML(**config.automl_settings)
-        aml.train(x=x, y=y, training_frame=train_data)
+    # Do the same for test_data
+    test_data.reset_index(level=0, inplace=True)
+    test_data.columns = ['date'] + list(test_data.columns)[1:]
+    if test_data['date'].dtype != 'datetime64[ns]':
+        test_data['date'] = pd.to_datetime(test_data['date'])
 
-        # Get the best model
-        model = aml.leader
+    # Add 'Close' and 'date' to X_train_pd and X_test_pd
+    X_train_pd = pd.concat([train_data['Close'][forecast_length:].reset_index(drop=True), X_train_pd], axis=1)
+    X_train_pd['date'] = train_data['date'][forecast_length:].reset_index(drop=True)
+    X_test_pd = pd.concat([test_data['Close'][forecast_length:].reset_index(drop=True), X_test_pd], axis=1)
+    X_test_pd['date'] = test_data['date'][forecast_length:].reset_index(drop=True)
 
-        # Save the model
-        model_path = h2o.save_model(model=model, path=".", force=True)
-        
-        # Make predictions
-        train_preds = model.predict(train_data)
-        test_preds = model.predict(test_data)
+    model = AutoTS(**autots_params)
+    model = model.fit(X_train_pd, date_col='date', value_col='Close', id_col=None)
 
-        # Convert predictions to numpy array and flatten them
-        train_preds = train_preds.as_data_frame().values.flatten()
-        test_preds = test_preds.as_data_frame().values.flatten()
+    # Make predictions
+    logging.info("Starting prediction")
+    prediction = model.predict(forecast_length)
+    logging.info("Prediction completed")
 
-        # Log the shapes for debugging
-        logging.debug(f'Shape of train_preds: {train_preds.shape}')
-        logging.debug(f'Shape of Y_train: {Y_train.shape}')
-        logging.debug(f'Shape of test_preds: {test_preds.shape}')
-        logging.debug(f'Shape of Y_test: {Y_test.shape}')
+    # Get the predicted values
+    prediction_values = prediction.prediction
 
-        # Check that the shapes of the predictions are as expected
-        assert train_preds.shape == Y_train.shape, 'Unexpected shape of train_preds'
-        assert test_preds.shape == Y_test.shape, 'Unexpected shape of test_preds'
+    # Create a DataFrame for the predicted values
+    prediction_df = pd.DataFrame(prediction_values, columns=['Predicted'])
 
-        # Print or log the predictions
-        logging.info(f'Train predictions: {train_preds}')
-        logging.info(f'Test predictions: {test_preds}')
+    # Append predicted prices to X_train_pd and X_test_pd
+    X_train_pd = pd.concat([X_train_pd, prediction_df], axis=1)
+    X_test_pd = pd.concat([X_test_pd, prediction_df], axis=1)
 
-        # Generate new input data for forecast
-        logging.debug(f'X_test shape: {X_test.shape}')  
-        logging.debug(f'forecast_steps: {forecast_steps}')  
-        forecast_input = X_test[-forecast_steps:]  # Get the most recent observations
-
-        # Flatten the forecast_input before converting to H2OFrame
-        forecast_input_flattened = forecast_input.reshape(-1, forecast_input.shape[-1])
-
-        # Convert forecast input to H2O data frame
-        forecast_input_h2o = h2o.H2OFrame(forecast_input_flattened)
-
-        # Make forecast
-        forecast = model.predict(forecast_input_h2o)
-
-        # Convert forecast to numpy array
-        forecast = forecast.as_data_frame().values.flatten()
-        logging.info("Model training completed")
-        return model_path, model, (train_preds, test_preds), forecast
+    return model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd
