@@ -1,16 +1,11 @@
 # main.py
 import logging
-import os
 import pandas as pd
 import config
-import model_evaluation
 import numpy as np
 from model_training import train_model
 import db_operations
 from fetch_data import fetch_data
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-os.environ["OMP_NUM_THREADS"] = str(os.cpu_count())
 
 # Set up logging
 logging.basicConfig(filename='next1.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
@@ -53,8 +48,7 @@ try:
     features = data
 
     # Call the train_model function and get the results
-    model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd = train_model(data, config.autots_params['forecast_length'])
-    
+    model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation = train_model(data, config.autots_params['forecast_length'])
     # Log shapes for debugging
     logging.info('Shape of data: %s', np.shape(data))
     logging.info('Shape of prediction: %s', np.shape(prediction))
@@ -63,7 +57,7 @@ try:
     conn, cur = db_operations.connect_to_db()
 
     # Insert the evaluation results into the database
-    insert_evaluation_results(cur, execution_id, evaluation)
+    db_operations.insert_evaluation_results(cur, execution_id, evaluation)
 
     # Insert execution settings
     # db_operations.insert_execution_settings(cur, execution_id, config, model)
