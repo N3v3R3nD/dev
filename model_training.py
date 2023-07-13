@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 from autots import AutoTS
 from config import autots_params
-
+import pickle
 logging.basicConfig(level=logging.DEBUG)
 from config import autots_params
 
-
+logging.basicConfig(level=logging.DEBUG)
 def train_model(data, forecast_length):
     logging.info('Splitting data into training and test sets')
     split = int(0.8 * len(data))
@@ -60,7 +60,6 @@ def train_model(data, forecast_length):
     evaluation = model.results()
     # Convert the DataFrame to a list of dictionaries
     evaluation = evaluation.to_dict('records')
-
     # Log the type and value of 'evaluation'
     logging.info(f"Type of 'evaluation': {type(evaluation)}")
     logging.info(f"Value of 'evaluation': {evaluation}")

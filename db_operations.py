@@ -50,15 +50,16 @@ def create_tables(cur):
         logging.info('Creating evaluation_results table if it doesn\'t exist')
         cur.execute("""
             CREATE TABLE IF NOT EXISTS evaluation_results (
-                execution_id SERIAL PRIMARY KEY,
+                execution_id SERIAL,
+                date DATE,
                 ID TEXT,
                 Model TEXT,
                 ModelParameters TEXT,
                 TransformationParameters TEXT,
-                TransformationRuntime FLOAT,
-                FitRuntime FLOAT,
-                PredictRuntime FLOAT,
-                TotalRuntime FLOAT,
+                TransformationRuntime TEXT,
+                FitRuntime TEXT,
+                PredictRuntime TEXT,
+                TotalRuntime TEXT,
                 Ensemble TEXT,
                 Exceptions TEXT,
                 Runs INTEGER,
@@ -105,7 +106,8 @@ def create_tables(cur):
                 smoothness_weighted FLOAT,
                 TotalRuntimeSeconds FLOAT,
                 Score FLOAT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (execution_id, date)
             )
         """)
         # Create fetched_data table if it doesn't exist
