@@ -51,7 +51,6 @@ def create_tables(cur):
         cur.execute("""
             CREATE TABLE IF NOT EXISTS evaluation_results (
                 execution_id SERIAL,
-                date DATE,
                 ID TEXT,
                 Model TEXT,
                 ModelParameters TEXT,
@@ -106,8 +105,7 @@ def create_tables(cur):
                 smoothness_weighted FLOAT,
                 TotalRuntimeSeconds FLOAT,
                 Score FLOAT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (execution_id, date)
+                PRIMARY KEY (execution_id, ID)
             )
         """)
         # Create fetched_data table if it doesn't exist
@@ -252,7 +250,6 @@ def insert_data(cur, execution_id, data, forecast):
         logging.error(f'Error inserting data: {e}')
         raise
 
-
 def insert_evaluation_results(cur, execution_id, evaluation):
     try:
         query = """
@@ -370,74 +367,41 @@ def insert_evaluation_results(cur, execution_id, evaluation):
                 %(TotalRuntimeSeconds)s,
                 %(Score)s
             )
-        """
-
-        values = []
+            ON CONFLICT (execution_id, ID) DO UPDATE SET
+                (Model, ModelParameters, TransformationParameters, TransformationRuntime, FitRuntime, PredictRuntime,
+                TotalRuntime, Ensemble, Exceptions, Runs, Generation, ValidationRound, ValidationStartDate, smape,
+                mae, rmse, made, mage, underestimate, mle, overestimate, imle, spl, containment, contour, maxe,
+                oda, dwae, mqae, ewmae, uwmse, smoothness, smape_weighted, mae_weighted, rmse_weighted, made_weighted,
+                mage_weighted, underestimate_weighted, mle_weighted, overestimate_weighted, imle_weighted, spl_weighted,
+                containment_weighted, contour_weighted, maxe_weighted, oda_weighted, dwae_weighted, mqae_weighted,
+                ewmae_weighted, uwmse_weighted, smoothness_weighted, TotalRuntimeSeconds, Score) =
+                (EXCLUDED.Model, EXCLUDED.ModelParameters, EXCLUDED.TransformationParameters, EXCLUDED.TransformationRuntime, EXCLUDED.FitRuntime,
+                EXCLUDED.PredictRuntime, EXCLUDED.TotalRuntime, EXCLUDED.Ensemble, EXCLUDED.Exceptions, EXCLUDED.Runs, EXCLUDED.Generation,
+                EXCLUDED.ValidationRound, EXCLUDED.ValidationStartDate, EXCLUDED.smape, EXCLUDED.mae, EXCLUDED.rmse, EXCLUDED.made, EXCLUDED.mage,
+                EXCLUDED.underestimate, EXCLUDED.mle, EXCLUDED.overestimate, EXCLUDED.imle, EXCLUDED.spl, EXCLUDED.containment, EXCLUDED.contour,
+                EXCLUDED.maxe, EXCLUDED.oda, EXCLUDED.dwae, EXCLUDED.mqae, EXCLUDED.ewmae, EXCLUDED.uwmse, EXCLUDED.smoothness,
+                EXCLUDED.smape_weighted, EXCLUDED.mae_weighted, EXCLUDED.rmse_weighted, EXCLUDED.made_weighted, EXCLUDED.mage_weighted,
+                EXCLUDED.underestimate_weighted, EXCLUDED.mle_weighted, EXCLUDED.overestimate_weighted, EXCLUDED.imle_weighted, EXCLUDED.spl_weighted,
+                EXCLUDED.containment_weighted, EXCLUDED.contour_weighted, EXCLUDED.maxe_weighted, EXCLUDED.oda_weighted, EXCLUDED.dwae_weighted,
+                EXCLUDED.mqae_weighted, EXCLUDED.ewmae_weighted, EXCLUDED.uwmse_weighted, EXCLUDED.smoothness_weighted, EXCLUDED.TotalRuntimeSeconds,
+                EXCLUDED.Score)
+                    """
+        values = []  # Define values here
         for row in evaluation:
-            row_values = {
-                'execution_id': execution_id,
-                'ID': row['ID'],
-                'Model': row['Model'],
-                'ModelParameters': row['ModelParameters'],
-                'TransformationParameters': row['TransformationParameters'],
-                'TransformationRuntime': row['TransformationRuntime'],
-                'FitRuntime': row['FitRuntime'],
-                'PredictRuntime': row['PredictRuntime'],
-                'TotalRuntime': row['TotalRuntime'],
-                'Ensemble': row['Ensemble'],
-                'Exceptions': row['Exceptions'],
-                'Runs': row['Runs'],
-                'Generation': row['Generation'],
-                'ValidationRound': row['ValidationRound'],
-                'ValidationStartDate': row['ValidationStartDate'],
-                'smape': row['smape'],
-                'mae': row['mae'],
-                'rmse': row['rmse'],
-                'made': row['made'],
-                'mage': row['mage'],
-                'underestimate': row['underestimate'],
-                'mle': row['mle'],
-                'overestimate': row['overestimate'],
-                'imle': row['imle'],
-                'spl': row['spl'],
-                'containment': row['containment'],
-                'contour': row['contour'],
-                'maxe': row['maxe'],
-                'oda': row['oda'],
-                'dwae': row['dwae'],
-                'mqae': row['mqae'],
-                'ewmae': row['ewmae'],
-                'uwmse': row['uwmse'],
-                'smoothness': row['smoothness'],
-                'smape_weighted': row['smape_weighted'],
-                'mae_weighted': row['mae_weighted'],
-                'rmse_weighted': row['rmse_weighted'],
-                'made_weighted': row['made_weighted'],
-                'mage_weighted': row['mage_weighted'],
-                'underestimate_weighted': row['underestimate_weighted'],
-                'mle_weighted': row['mle_weighted'],
-                'overestimate_weighted': row['overestimate_weighted'],
-                'imle_weighted': row['imle_weighted'],
-                'spl_weighted': row['spl_weighted'],
-                'containment_weighted': row['containment_weighted'],
-                'contour_weighted': row['contour_weighted'],
-                'maxe_weighted': row['maxe_weighted'],
-                'oda_weighted': row['oda_weighted'],
-                'dwae_weighted': row['dwae_weighted'],
-                'mqae_weighted': row['mqae_weighted'],
-                'ewmae_weighted': row['ewmae_weighted'],
-                'uwmse_weighted': row['uwmse_weighted'],
-                'smoothness_weighted': row['smoothness_weighted'],
-                'TotalRuntimeSeconds': row['TotalRuntimeSeconds'],
-                'Score': row['Score']
-            }
-            values.append(row_values)
+            # Add execution_id to each row
+            row['execution_id'] = execution_id
+
+            # Explicitly convert "NaT" to None for 'ValidationStartDate'
+            if row['ValidationStartDate'] == "NaT" or pd.isnull(row['ValidationStartDate']):
+                row['ValidationStartDate'] = None
+
+            values.append(row)
 
         cur.executemany(query, values)
-
     except Exception as e:
         logging.error(f"Error inserting evaluation results: {e}")
         raise
+
 
 
 def insert_forecast(cur, execution_id, forecast, target_scaler):

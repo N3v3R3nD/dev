@@ -55,7 +55,11 @@ try:
 
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
-    
+            # Print the first few rows of the data DataFrame
+    print(data.head())
+
+    # Print the columns of the data DataFrame
+    print(data.columns)
     # Insert data
     db_operations.insert_data(cur, execution_id, data, prediction)
     
