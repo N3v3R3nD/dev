@@ -4,7 +4,7 @@ import logging
 # Log level for the root logger
 log_level = logging.INFO
 # The start date for fetching the historical data
-start_date = '2021-01-01'
+start_date = '2018-01-01'
 
 # The end date for fetching the historical data
 end_date = datetime.today().strftime('%Y-%m-%d')
@@ -13,7 +13,7 @@ end_date = datetime.today().strftime('%Y-%m-%d')
 target_column_name = 'open_price'
 
 # Ticker symbol for the stock to predict. This is used to fetch data from Yahoo Finance.
-yfinance_symbol = "ES=F"
+yfinance_symbol = "^NDX"
 
 # Features to be used for modeling
 features_to_include = ['Open', 'High', 'Low', 'Adj Close', 'Volume', 'SMA', 'EMA', 'RSI', 'MACD', 'Upper', 'Lower', 'Cumulative_Returns', 'VWAP', 'GDP Change', 'Unemployment Change', 'Target']
@@ -42,7 +42,7 @@ autots_params = {
     'ensemble': 'simple',
 
     # Maximum number of generations to run. Each generation is a complete run through all selected models.
-    'max_generations': 1,
+    'max_generations': 10,
 
     # The number of jobs to run in parallel. Options: -1 (using all processors), or any positive integer
     'n_jobs': -1,
