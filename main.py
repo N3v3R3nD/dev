@@ -1,12 +1,11 @@
 # main.py
 import logging
-import pandas as pd
-import config
 import numpy as np
+from autots import create_regressor
 from model_training import train_model
 import db_operations
 from fetch_data import fetch_data
-from autots import create_regressor
+import config
 
 # Create a root logger
 logger = logging.getLogger()
@@ -37,6 +36,8 @@ logger.addHandler(file_handler)
 # Now, logging.info(), logging.debug(), etc. should log to both the console and the file
 logging.info('Starting script')
 
+conn = None
+
 try:
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
@@ -50,7 +51,7 @@ try:
     # Fetch and preprocess data
     logging.info('Fetching data')
     data = fetch_data()
-    
+
     # Create a future regressor
     regr_train, regr_fcst = create_regressor(
         data,
@@ -92,12 +93,13 @@ except ValueError as ve:
     logging.error('ValueError occurred: %s', ve)
 except IOError as ioe:
     logging.error('IOError occurred: %s', ioe)
-except Exception as e:
-    logging.error('An error occurred: %s', e)
+except Exception as error:
+    logging.error('An error occurred: %s', error)
     # Optionally, you can raise the exception again to stop the script
     raise
 finally:
-    # Close connection
-    db_operations.close_connection(conn)
+    # Close connection if it was opened
+    if conn is not None:
+        db_operations.close_connection(conn)
 
 logging.info('Script completed')

@@ -1,12 +1,11 @@
 # db_operation.py
 import logging
 from datetime import datetime, timedelta
-
+import json
 import pandas as pd
 import psycopg2
 import config
-import numpy as np
-import json
+
 
 # Extract database credentials from config
 db_config = config.database
@@ -30,7 +29,7 @@ def connect_to_db():
         logging.info('Successfully connected to the database')
         return conn, cur
     except Exception as e:
-        logging.error(f"Error connecting to the database: {e}")
+        logging.error("Error connecting to the database: %s", e)
         raise
 
 
@@ -160,7 +159,7 @@ def create_tables(cur):
 
         logging.info('Successfully created tables')
     except Exception as e:
-        logging.error(f"Error creating tables: {e}")
+        logging.error("Error creating tables: %s", e)
         raise
 
 
@@ -490,7 +489,7 @@ def insert_evaluation_results(cur, execution_id, evaluation):
 
         cur.executemany(query, values)
     except Exception as e:
-        logging.error(f"Error inserting evaluation results: {e}")
+        logging.error("Error inserting evaluation results: %s", e)
         raise
 
 
@@ -524,5 +523,5 @@ def close_connection(conn):
         # Close the database connection
         conn.close()
     except Exception as e:
-        logging.error(f"Error closing connection: {e}")
+        logging.error("Error closing connection: %s", e)
         raise
