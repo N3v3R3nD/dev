@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import psycopg2
-
 import config
 import numpy as np
 import json
@@ -18,8 +17,8 @@ password = db_config['password']
 
 
 def connect_to_db():
+    """Establishes a connection to the database and returns a cursor."""
     try:
-        # Connect to the database
         logging.info('Connecting to the database')
         conn = psycopg2.connect(
             host=host,
@@ -28,16 +27,21 @@ def connect_to_db():
             password=password
         )
         cur = conn.cursor()
+        logging.info('Successfully connected to the database')
         return conn, cur
     except Exception as e:
         logging.error(f"Error connecting to the database: {e}")
         raise
 
+
 def create_tables(cur):
+    """Creates necessary tables in the database if they do not exist."""
     try:
-        # Create actual_vs_predicted table if it doesn't exist
-        logging.info('Creating actual_vs_predicted table if it does not exist')
-        cur.execute("""
+        logging.info('Creating tables if they do not exist')
+
+        # List of SQL commands to create tables
+        commands = [
+            """
             CREATE TABLE IF NOT EXISTS actual_vs_predicted (
                 execution_id SERIAL,
                 date DATE,
@@ -45,10 +49,8 @@ def create_tables(cur):
                 predicted_price FLOAT,
                 PRIMARY KEY (execution_id, date)
             )
-        """)
-          # Create evaluation_results table if it doesn't exist
-        logging.info('Creating evaluation_results table if it doesn\'t exist')
-        cur.execute("""
+            """,
+            """
             CREATE TABLE IF NOT EXISTS evaluation_results (
                 execution_id SERIAL,
                 ID TEXT,
@@ -107,10 +109,8 @@ def create_tables(cur):
                 Score FLOAT,
                 PRIMARY KEY (execution_id, ID)
             )
-        """)
-        # Create fetched_data table if it doesn't exist
-        logging.info('Creating fetched_data table if it does not exist')
-        cur.execute("""
+            """,
+            """
             CREATE TABLE IF NOT EXISTS fetched_data (
                 execution_id SERIAL,
                 date DATE,
@@ -122,29 +122,43 @@ def create_tables(cur):
                 volume FLOAT,
                 PRIMARY KEY (execution_id, date)
             )
-        """)
-
-        # Create forecasted_prices table if it doesn't exist
-        logging.info('Creating forecasted_prices table if it doesn\'t exist')
-        cur.execute("""
+            """,
+            """
             CREATE TABLE IF NOT EXISTS forecasted_prices (
                 execution_id SERIAL,
                 date DATE,
                 forecasted_price FLOAT,
+                upper_forecast FLOAT,
+                lower_forecast FLOAT,
+                model_parameters TEXT,
+                transformation_parameters TEXT,
+                forecast_length INT,
+                model_name TEXT,
+                avg_metrics FLOAT,
+                avg_metrics_weighted FLOAT,
+                per_series_metrics TEXT,
+                per_timestamp TEXT,
+                fit_runtime TIME,
+                predict_runtime TIME,
+                total_runtime TIME,
+                transformation_runtime TIME,
                 PRIMARY KEY (execution_id, date)
             )
-        """)
-
-        # Create execution_settings table if it doesn't exist
-        logging.info('Creating execution_settings table if it doesn\'t exist')
-        cur.execute("""
+            """,
+            """
             CREATE TABLE IF NOT EXISTS execution_settings (
                 execution_id SERIAL PRIMARY KEY,
                 config_settings TEXT,
                 model_parameters TEXT
             )
-        """)
+            """
+        ]
 
+        # Execute each command
+        for command in commands:
+            cur.execute(command)
+
+        logging.info('Successfully created tables')
     except Exception as e:
         logging.error(f"Error creating tables: {e}")
         raise
@@ -205,15 +219,16 @@ def insert_execution_settings(cur, execution_id, config, model):
         logging.error(f"Error inserting execution settings: {e}")
         raise
 
-def insert_data(cur, execution_id, data, forecast):
+
+def insert_data(cur, execution_id, data, prediction_df):
     try:
-        logging.info('Inserting actual and predicted prices into the database')
+        logging.info('Inserting data into the database')
 
         # Insert actual and predicted prices into the database
-        for i in range(len(data)-1):  # Exclude the last record as it does not have a prediction
+        for i in range(len(data)):  
             date = data.index[i].strftime('%Y-%m-%d')
             actual_price = data.iloc[i]['Close']
-            predicted_price = data.iloc[i]['Predicted'] if 'Predicted' in data.columns else None
+            predicted_price = prediction_df.iloc[i]['Close'] if i < len(prediction_df) else None
 
             if predicted_price is not None:
                 cur.execute(f'''
@@ -230,25 +245,101 @@ def insert_data(cur, execution_id, data, forecast):
                     SET actual_price = {actual_price}
                 ''')
 
-        # Determine the length of the loop
-        loop_length = len(forecast.forecast)
-
-        # Insert forecasted prices into the database
-        logging.info('Inserting forecasted prices into the database')
-
-        for i in range(loop_length):  
-            date = (data.index[-1] + pd.DateOffset(days=i+1)).strftime('%Y-%m-%d')  # The date is the last date in data plus the forecast horizon
-            forecasted_price = forecast.forecast.iloc[i][0]  # Assuming forecast is a DataFrame with forecasted prices
-
-            cur.execute(f'''
-                INSERT INTO forecasted_prices (execution_id, date, forecasted_price) 
-                VALUES ({execution_id}, '{date}', {forecasted_price}) 
-                ON CONFLICT (execution_id, date) DO UPDATE 
-                SET forecasted_price = {forecasted_price}
-            ''')
     except Exception as e:
         logging.error(f'Error inserting data: {e}')
         raise
+
+
+
+def insert_forecast(cur, execution_id, prediction):
+    try:
+        logging.info("Inserting forecast")
+        logging.debug(f"Type of prediction object: {type(prediction)}")
+        logging.debug(f"Attributes of prediction object: {dir(prediction)}")
+
+        # Get today's date
+        today = datetime.today()
+
+        # SQL query to insert or update forecast in the database
+        query = """
+            INSERT INTO forecasted_prices (
+                execution_id, 
+                date, 
+                forecasted_price,
+                upper_forecast,
+                lower_forecast,
+                model_parameters,
+                transformation_parameters,
+                forecast_length,
+                model_name,
+                avg_metrics,
+                avg_metrics_weighted,
+                per_series_metrics,
+                per_timestamp,
+                fit_runtime,
+                predict_runtime,
+                total_runtime,
+                transformation_runtime) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) 
+            ON CONFLICT (execution_id, date) 
+            DO UPDATE SET 
+                forecasted_price = EXCLUDED.forecasted_price,
+                upper_forecast = EXCLUDED.upper_forecast,
+                lower_forecast = EXCLUDED.lower_forecast,
+                model_parameters = EXCLUDED.model_parameters,
+                transformation_parameters = EXCLUDED.transformation_parameters,
+                forecast_length = EXCLUDED.forecast_length,
+                model_name = EXCLUDED.model_name,
+                avg_metrics = EXCLUDED.avg_metrics,
+                avg_metrics_weighted = EXCLUDED.avg_metrics_weighted,
+                per_series_metrics = EXCLUDED.per_series_metrics,
+                per_timestamp = EXCLUDED.per_timestamp,
+                fit_runtime = EXCLUDED.fit_runtime,
+                predict_runtime = EXCLUDED.predict_runtime,
+                total_runtime = EXCLUDED.total_runtime,
+                transformation_runtime = EXCLUDED.transformation_runtime
+        """
+        for i in range(len(prediction.forecast)):
+            date = (today + timedelta(days=i+1)).strftime('%Y-%m-%d')
+            forecasted_price = prediction.forecast.iloc[i][0]
+            upper_forecast = prediction.upper_forecast.iloc[i][0]
+            lower_forecast = prediction.lower_forecast.iloc[i][0]
+            model_parameters = str(prediction.model_parameters)
+            transformation_parameters = str(prediction.transformation_parameters)
+            forecast_length = prediction.forecast_length
+            model_name = prediction.model_name
+            avg_metrics = prediction.avg_metrics
+            avg_metrics_weighted = prediction.avg_metrics_weighted
+            per_series_metrics = prediction.per_series_metrics
+            per_timestamp = prediction.per_timestamp
+            fit_runtime = prediction.fit_runtime
+            predict_runtime = prediction.predict_runtime
+            total_runtime = prediction.total_runtime() if callable(prediction.total_runtime) else prediction.total_runtime
+            transformation_runtime = prediction.transformation_runtime
+            logging.debug(f"Type of forecasted_price: {type(forecasted_price)}")
+            logging.debug(f"Type of upper_forecast: {type(upper_forecast)}")
+            logging.debug(f"Type of lower_forecast: {type(lower_forecast)}")
+            logging.debug(f"Type of model_parameters: {type(model_parameters)}")
+            logging.debug(f"Type of transformation_parameters: {type(transformation_parameters)}")
+            logging.debug(f"Type of forecast_length: {type(forecast_length)}")
+            logging.debug(f"Type of model_name: {type(model_name)}")
+            logging.debug(f"Type of avg_metrics: {type(avg_metrics)}")
+            logging.debug(f"Type of avg_metrics_weighted: {type(avg_metrics_weighted)}")
+            logging.debug(f"Type of per_series_metrics: {type(per_series_metrics)}")
+            logging.debug(f"Type of per_timestamp: {type(per_timestamp)}")
+            logging.debug(f"Type of fit_runtime: {type(fit_runtime)}")
+            logging.debug(f"Type of predict_runtime: {type(predict_runtime)}")
+            logging.debug(f"Type of total_runtime: {type(total_runtime)}")
+            logging.debug(f"Type of transformation_runtime: {type(transformation_runtime)}")
+            cur.execute(query, (execution_id, date, forecasted_price, upper_forecast, lower_forecast, model_parameters, transformation_parameters, forecast_length, model_name, avg_metrics, avg_metrics_weighted, per_series_metrics, per_timestamp, fit_runtime, predict_runtime, total_runtime, transformation_runtime))
+    except Exception as e:
+        logging.error(f'Error inserting forecast: {e}')
+        raise
+
+
+
+
+
 
 def insert_evaluation_results(cur, execution_id, evaluation):
     try:
@@ -403,36 +494,6 @@ def insert_evaluation_results(cur, execution_id, evaluation):
         raise
 
 
-
-def insert_forecast(cur, execution_id, forecast, target_scaler):
-    try:
-        logging.info("Inserting forecast")
-        # Convert forecast to list if it's a numpy array
-        if isinstance(forecast, np.ndarray):
-            forecast = forecast.tolist()
-
-        # Get today's date
-        today = datetime.today()
-
-        # SQL query to insert or update forecast in the database
-        query = """
-            INSERT INTO forecasted_prices (execution_id, date, forecasted_price) 
-            VALUES (%s, %s, %s) 
-            ON CONFLICT (execution_id, date) 
-            DO UPDATE SET forecasted_price = EXCLUDED.forecasted_price
-        """
-        # Insert or update each forecasted price in the database
-        for i, price in enumerate(forecast):
-            date = today + timedelta(days=i+1)  # The date is the current date plus the forecast horizon
-
-            # Inverse transform the forecasted price
-            forecasted_price = target_scaler.inverse_transform(np.array([[price]]))[0][0]
-
-            cur.execute(query, (execution_id, date, forecasted_price)) # added execution_id here
-    except Exception as e:
-        logging.error(f"Error inserting forecast: {e}")
-        raise
-
 def insert_fetched_data(cur, execution_id, data):
     try:
         logging.info('Inserting fetched data into the database')
@@ -455,6 +516,7 @@ def insert_fetched_data(cur, execution_id, data):
     except Exception as e:
         logging.error(f"Error inserting fetched data: {e}")
         raise
+
 
 def close_connection(conn):
     try:

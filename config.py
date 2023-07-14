@@ -1,7 +1,7 @@
 from datetime import datetime
 
 # The start date for fetching the historical data
-start_date = '2020-01-01'
+start_date = '2021-01-01'
 
 # The end date for fetching the historical data
 end_date = datetime.today().strftime('%Y-%m-%d')
@@ -28,7 +28,7 @@ autots_params = {
 
     # This parameter allows the model to automatically drop old data that exceeds this number of periods.
     # This can be useful for very large datasets or for datasets with missing periods.
-    'drop_data_older_than_periods': 200,
+    # 'drop_data_older_than_periods': 200,
 
     # The number of jobs to run in parallel. Options: -1 (using all processors), or any positive integer
     'n_jobs': -1,

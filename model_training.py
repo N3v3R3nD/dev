@@ -8,12 +8,17 @@ import pickle
 logging.basicConfig(level=logging.DEBUG)
 from config import autots_params
 
-logging.basicConfig(level=logging.DEBUG)
 def train_model(data, forecast_length):
     logging.info('Splitting data into training and test sets')
     split = int(0.8 * len(data))
     train_data = data[:split]
     test_data = data[split:]
+
+    # Log the shape and first few rows of train_data and test_data
+    logging.debug(f"Shape of train_data: {train_data.shape}")
+    logging.debug(f"First few rows of train_data:\n{train_data.head()}")
+    logging.debug(f"Shape of test_data: {test_data.shape}")
+    logging.debug(f"First few rows of test_data:\n{test_data.head()}")
 
     # Create the dataset for training
     logging.info('Creating dataset for training')
@@ -60,23 +65,31 @@ def train_model(data, forecast_length):
     evaluation = model.results()
     # Convert the DataFrame to a list of dictionaries
     evaluation = evaluation.to_dict('records')
-    # Log the type and value of 'evaluation'
-    logging.info(f"Type of 'evaluation': {type(evaluation)}")
-    logging.info(f"Value of 'evaluation': {evaluation}")
 
     # Make predictions
     logging.info("Starting prediction")
     prediction = model.predict(forecast_length)
     logging.info("Prediction completed")
 
+    # Log the prediction
+    logging.debug(f"Prediction: {prediction}")
+    
     # Get the predicted values
     prediction_values = prediction.forecast
+    logging.debug(f"Prediction values: \n{prediction_values}")
 
-    # Create a DataFrame for the predicted values
-    prediction_df = pd.DataFrame(prediction_values, columns=['Predicted'])
+    # Since prediction_values is already a DataFrame, we don't need to create another DataFrame
+    prediction_df = prediction_values
+    logging.debug(f"Created prediction_df with shape: {prediction_df.shape}")
+
+    # Log the prediction_df
+    logging.debug(f"Prediction DataFrame:\n{prediction_df}")
 
     # Append predicted prices to X_train_pd and X_test_pd
     X_train_pd = pd.concat([X_train_pd, prediction_df], axis=1)
     X_test_pd = pd.concat([X_test_pd, prediction_df], axis=1)
+    logging.debug(f"prediction_df in train_model: \n{prediction_df}")
 
-    return model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation
+
+    return model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation, prediction_df
+

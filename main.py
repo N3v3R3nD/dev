@@ -48,7 +48,7 @@ try:
 
     # Call the train_model function and get the results
     model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation, prediction_df = train_model(data, config.autots_params['forecast_length'])
-    
+
     # Log shapes for debugging
     logging.info('Shape of data: %s', np.shape(data))
     logging.info('Shape of prediction: %s', np.shape(prediction_df))
@@ -57,14 +57,14 @@ try:
     conn, cur = db_operations.connect_to_db()
 
     # Insert forecast into the database
-    db_operations.insert_forecast(cur, execution_id, prediction_df)
-    
+    db_operations.insert_forecast(cur, execution_id, prediction)
+
     # Insert Data into the database
     db_operations.insert_data(cur, execution_id, data, prediction_df)
-        
+
     # Insert the evaluation results into the database
     db_operations.insert_evaluation_results(cur, execution_id, evaluation)
-    
+
     # Commit changes
     conn.commit()
 
