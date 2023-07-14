@@ -20,7 +20,6 @@ console_handler.setFormatter(console_formatter)
 
 # Add the console handler to the logger
 logging.getLogger('').addHandler(console_handler)
-
 # Log to file as well
 logging.info('Starting script')
 
@@ -48,23 +47,22 @@ try:
     features = data
 
     # Call the train_model function and get the results
-    model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation = train_model(data, config.autots_params['forecast_length'])
+    model, prediction, X_train_pd, X_test_pd, Y_train_pd, Y_test_pd, evaluation, prediction_df = train_model(data, config.autots_params['forecast_length'])
+    
     # Log shapes for debugging
     logging.info('Shape of data: %s', np.shape(data))
-    logging.info('Shape of prediction: %s', np.shape(prediction))
+    logging.info('Shape of prediction: %s', np.shape(prediction_df))
 
     # Connect to the database
     conn, cur = db_operations.connect_to_db()
-            # Print the first few rows of the data DataFrame
-    print(data.head())
 
-    # Print the columns of the data DataFrame
-    print(data.columns)
-    # Insert data
-    db_operations.insert_data(cur, execution_id, data, prediction)
+    # Insert forecast into the database
+    db_operations.insert_forecast(cur, execution_id, prediction_df)
     
+    # Insert Data into the database
+    db_operations.insert_data(cur, execution_id, data, prediction_df)
+        
     # Insert the evaluation results into the database
-    logging.info(f"Evaluation results:\n{evaluation}")
     db_operations.insert_evaluation_results(cur, execution_id, evaluation)
     
     # Commit changes
